@@ -2,12 +2,23 @@
 
 #include "../DataStructs/ESPEasy_EventStruct.h"
 
-C015_queue_element::C015_queue_element() : controller_idx(0), TaskIndex(0), idx(0), valuesSent(0) {}
+#ifdef USES_C015
+
+C015_queue_element::C015_queue_element(C015_queue_element&& other)
+  : idx(other.idx), _timestamp(other._timestamp), TaskIndex(other.TaskIndex)
+  , controller_idx(other.controller_idx), valuesSent(other.valuesSent)
+  , valueCount(other.valueCount)
+{
+  for (byte i = 0; i < VARS_PER_TASK; ++i) {
+    txt[i]  = std::move(other.txt[i]);
+    vPin[i] = other.vPin[i];
+  }
+}
 
 C015_queue_element::C015_queue_element(const struct EventStruct *event, byte value_count) :
-  controller_idx(event->ControllerIndex),
-  TaskIndex(event->TaskIndex),
   idx(event->idx),
+  TaskIndex(event->TaskIndex),
+  controller_idx(event->ControllerIndex),
   valuesSent(0),
   valueCount(value_count) {}
 
@@ -17,10 +28,32 @@ bool C015_queue_element::checkDone(bool succesfull) const {
 }
 
 size_t C015_queue_element::getSize() const {
-  size_t total = sizeof(this);
+  size_t total = sizeof(*this);
 
   for (int i = 0; i < VARS_PER_TASK; ++i) {
     total += txt[i].length();
   }
   return total;
 }
+
+bool C015_queue_element::isDuplicate(const C015_queue_element& other) const {
+  if ((other.controller_idx != controller_idx) ||
+      (other.TaskIndex != TaskIndex) ||
+      (other.valueCount != valueCount) ||
+      (other.idx != idx)) {
+    return false;
+  }
+
+  for (byte i = 0; i < VARS_PER_TASK; ++i) {
+    if (other.txt[i] != txt[i]) {
+      return false;
+    }
+
+    if (other.vPin[i] != vPin[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+#endif // ifdef USES_C015

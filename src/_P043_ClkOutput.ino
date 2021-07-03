@@ -1,7 +1,11 @@
+#include "_Plugin_Helper.h"
 #ifdef USES_P043
 //#######################################################################################################
 //#################################### Plugin 043: Clock Output #########################################
 //#######################################################################################################
+
+
+
 #define PLUGIN_043
 #define PLUGIN_ID_043         43
 #define PLUGIN_NAME_043       "Output - Clock"
@@ -19,7 +23,7 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
       {
         Device[++deviceCount].Number = PLUGIN_ID_043;
         Device[deviceCount].Type = DEVICE_TYPE_SINGLE;
-        Device[deviceCount].VType = SENSOR_TYPE_SWITCH;
+        Device[deviceCount].VType = Sensor_VType::SENSOR_TYPE_SWITCH;
         Device[deviceCount].Ports = 0;
         Device[deviceCount].PullUpOption = false;
         Device[deviceCount].InverseLogicOption = false;
@@ -49,8 +53,8 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
 
     case PLUGIN_WEBFORM_LOAD:
       {
-        String options[3];
-        options[0] = "";
+        const __FlashStringHelper *  options[3];
+        options[0] = F("");
         options[1] = F("Off");
         options[2] = F("On");
 
@@ -65,9 +69,9 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
 //          addHtml(timeLong2String(ExtraTaskSettings.TaskDevicePluginConfigLong[x]));
 //          addHtml("'>");
 
-          addHtml(" ");
+          addHtml(' ');
           byte choice = ExtraTaskSettings.TaskDevicePluginConfig[x];
-          addSelector(String(F("p043_state")) + (x), 3, options, NULL, NULL, choice, false);
+          addSelector(String(F("p043_state")) + (x), 3, options, NULL, NULL, choice);
         }
         success = true;
         break;
@@ -79,12 +83,12 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
         {
           String argc = F("p043_clock");
           argc += x;
-          String plugin1 = WebServer.arg(argc);
+          String plugin1 = webArg(argc);
           ExtraTaskSettings.TaskDevicePluginConfigLong[x] = string2TimeLong(plugin1);
 
           argc = F("p043_state");
           argc += x;
-          String plugin2 = WebServer.arg(argc);
+          String plugin2 = webArg(argc);
           ExtraTaskSettings.TaskDevicePluginConfig[x] = plugin2.toInt();
         }
         success = true;
@@ -102,7 +106,7 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
         LoadTaskSettings(event->TaskIndex);
         for (byte x = 0; x < PLUGIN_043_MAX_SETTINGS; x++)
         {
-          unsigned long clockEvent = (unsigned long)minute() % 10 | (unsigned long)(minute() / 10) << 4 | (unsigned long)(hour() % 10) << 8 | (unsigned long)(hour() / 10) << 12 | (unsigned long)weekday() << 16;
+          unsigned long clockEvent = (unsigned long)node_time.minute() % 10 | (unsigned long)(node_time.minute() / 10) << 4 | (unsigned long)(node_time.hour() % 10) << 8 | (unsigned long)(node_time.hour() / 10) << 12 | (unsigned long)node_time.weekday() << 16;
           unsigned long clockSet = ExtraTaskSettings.TaskDevicePluginConfigLong[x];
 
           if (matchClockEvent(clockEvent,clockSet))
@@ -114,9 +118,11 @@ boolean Plugin_043(byte function, struct EventStruct *event, String& string)
               pinMode(CONFIG_PIN1, OUTPUT);
               digitalWrite(CONFIG_PIN1, state);
               UserVar[event->BaseVarIndex] = state;
-              String log = F("TCLK : State ");
-              log += state;
-              addLog(LOG_LEVEL_INFO, log);
+              if (loglevelActiveFor(LOG_LEVEL_INFO)) {
+                String log = F("TCLK : State ");
+                log += state;
+                addLog(LOG_LEVEL_INFO, log);
+              }
               sendData(event);
             }
           }

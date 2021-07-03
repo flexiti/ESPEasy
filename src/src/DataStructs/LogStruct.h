@@ -3,6 +3,8 @@
 
 #include <Arduino.h>
 
+#include "../../ESPEasy_common.h"
+
 /*********************************************************************************************\
  * LogStruct
 \*********************************************************************************************/
@@ -20,15 +22,14 @@
 #endif
 
 struct LogStruct {
-    LogStruct();
-
+    
     void add(const byte loglevel, const char *line);
 
     // Read the next item and append it to the given string.
     // Returns whether new lines are available.
     bool get(String& output, const String& lineEnd);
 
-    String get_logjson_formatted(bool& logLinesAvailable, unsigned long& timestamp);
+    bool getNext(bool& logLinesAvailable, unsigned long& timestamp, String& message, byte& loglevel);
 
     bool isEmpty();
 
@@ -37,16 +38,14 @@ struct LogStruct {
   private:
     String formatLine(int index, const String& lineEnd);
 
-    String logjson_formatLine(int index);
-
     void clearExpiredEntries();
 
     String Message[LOG_STRUCT_MESSAGE_LINES];
-    unsigned long timeStamp[LOG_STRUCT_MESSAGE_LINES];
-    int write_idx;
-    int read_idx;
-    unsigned long lastReadTimeStamp;
-    byte log_level[LOG_STRUCT_MESSAGE_LINES];
+    unsigned long timeStamp[LOG_STRUCT_MESSAGE_LINES] = {0};
+    int write_idx = 0;
+    int read_idx = 0;
+    unsigned long lastReadTimeStamp = 0;
+    byte log_level[LOG_STRUCT_MESSAGE_LINES] = {0};
 
 };
 

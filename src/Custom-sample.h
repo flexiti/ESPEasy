@@ -1,9 +1,10 @@
 #ifndef ESPEASY_CUSTOM_H
 #define ESPEASY_CUSTOM_H
 
+#include <Arduino.h>
+
 /*
     To modify the stock configuration without changing the EspEasy.ino file :
-
     1) rename this file to "Custom.h" (It is ignored by Git)
     2) define your own settings below
     3) define USE_CUSTOM_H as a build flags. ie : export PLATFORMIO_BUILD_FLAGS="'-DUSE_CUSTOM_H'"
@@ -11,15 +12,12 @@
 
 
 /*
-
  #######################################################################################################
    Your Own Default Settings
  #######################################################################################################
-
     You can basically ovveride ALL macro defined in ESPEasy.ino.
     Don't forget to first #undef each existing #define that you add below.
     But since this Custom.h is included before other defines are made, you don't have to undef a lot of defines.
-
     Here are some examples:
  */
 
@@ -42,6 +40,9 @@
 // --- Wifi Client Mode -----------------------------------------------------------------------------
 #define DEFAULT_SSID                         "MyHomeSSID"            // Enter your network SSID
 #define DEFAULT_KEY                          "MySuperSecretPassword" // Enter your network WPA key
+#define DEFAULT_SSID2                        ""                      // Enter your fallback network SSID
+#define DEFAULT_KEY2                         ""                      // Enter your fallback network WPA key
+#define DEFAULT_WIFI_INCLUDE_HIDDEN_SSID     false                   // Allow to connect to hidden SSID APs
 #define DEFAULT_USE_STATIC_IP                false                   // (true|false) enabled or disabled static IP
 #define DEFAULT_IP                           "192.168.0.50"          // Enter your IP address
 #define DEFAULT_DNS                          "192.168.0.1"           // Enter your DNS
@@ -52,6 +53,7 @@
 #define DEFAULT_IP_BLOCK_LEVEL               1                       // 0: ALL_ALLOWED  1: LOCAL_SUBNET_ALLOWED  2:
 // ONLY_IP_RANGE_ALLOWED
 #define DEFAULT_ADMIN_USERNAME               "admin"
+#define DEFAULT_ADMIN_PASS                   ""
 
 #define DEFAULT_WIFI_CONNECTION_TIMEOUT      10000 // minimum timeout in ms for WiFi to be connected.
 #define DEFAULT_WIFI_FORCE_BG_MODE           false // when set, only allow to connect in 802.11B or G mode (not N)
@@ -60,16 +62,29 @@
 #define DEFAULT_WIFI_NONE_SLEEP              false // When set, the wifi will be set to no longer sleep (more power
 // used and need reboot to reset mode)
 #define DEFAULT_GRATUITOUS_ARP               false // When set, the node will send periodical gratuitous ARP
-// packets to announce itself.
+                                                   // packets to announce itself.
+#define DEFAULT_TOLERANT_LAST_ARG_PARSE      false // When set, the last argument of some commands will be parsed to the end of the line
+                                                   // See: https://github.com/letscontrolit/ESPEasy/issues/2724
+#define DEFAULT_SEND_TO_HTTP_ACK             false // Wait for ack with SendToHttp command.
+
+#define DEFAULT_AP_DONT_FORCE_SETUP          false // Allow optional usage of Sensor without WIFI avaiable // When set you can use the Sensor in AP-Mode without beeing forced to /setup
+#define DEFAULT_DONT_ALLOW_START_AP          false // Usually the AP will be started when no WiFi is defined, or the defined one cannot be found. This flag may prevent it.
 
 // --- Default Controller ------------------------------------------------------------------------------
 #define DEFAULT_CONTROLLER   false                                          // true or false enabled or disabled, set 1st controller
                                                                             // defaults
+#define DEFAULT_CONTROLLER_ENABLED true                                     // Enable default controller by default
+#define DEFAULT_CONTROLLER_USER    ""                                       // Default controller user
+#define DEFAULT_CONTROLLER_PASS    ""                                       // Default controller Password
 
 // using a default template, you also need to set a DEFAULT PROTOCOL to a suitable MQTT protocol !
 #define DEFAULT_PUB         "sensors/espeasy/%sysname%/%tskname%/%valname%" // Enter your pub
 #define DEFAULT_SUB         "sensors/espeasy/%sysname%/#"                   // Enter your sub
 #define DEFAULT_SERVER      "192.168.0.8"                                   // Enter your Server IP address
+#define DEFAULT_SERVER_HOST ""                                              // Server hostname
+#define DEFAULT_SERVER_USEDNS false                                         // true: Use hostname.  false: use IP
+#define DEFAULT_USE_EXTD_CONTROLLER_CREDENTIALS   false                     // true: Allow longer user credentials for controllers
+
 #define DEFAULT_PORT        8080                                            // Enter your Server port value
 
 #define DEFAULT_PROTOCOL    0                                               // Protocol used for controller communications
@@ -86,9 +101,14 @@
 
 #define DEFAULT_PIN_I2C_SDA                     4
 #define DEFAULT_PIN_I2C_SCL                     5
+#define DEFAULT_I2C_CLOCK_SPEED                 400000            // Use 100 kHz if working with old I2C chips
 
-#define DEFAULT_PIN_STATUS_LED                  -1
+#define DEFAULT_SPI                             0                 //0=disabled 1=enabled and for ESP32 there is option 2 =HSPI
+
+#define DEFAULT_PIN_STATUS_LED                  (-1)
 #define DEFAULT_PIN_STATUS_LED_INVERSED         true
+
+#define DEFAULT_PIN_RESET_BUTTON                (-1)
 
 
 #define DEFAULT_USE_RULES                       false             // (true|false) Enable Rules?
@@ -106,6 +126,9 @@
 #define DEFAULT_TIME_ZONE                       0                 // Time Offset (in minutes)
 #define DEFAULT_USE_DST                         false             // (true|false) Use Daily Time Saving
 
+#define DEFAULT_LATITUDE                        0.0f              // Default Latitude  
+#define DEFAULT_LONGITUDE                       0.0f              // Default Longitude
+
 #define DEFAULT_SYSLOG_IP                       ""                // Syslog IP Address
 #define DEFAULT_SYSLOG_LEVEL                    0                 // Syslog Log Level
 #define DEFAULT_SERIAL_LOG_LEVEL                LOG_LEVEL_INFO    // Serial Log Level
@@ -117,10 +140,90 @@
 #define DEFAULT_SERIAL_BAUD                     115200            // Serial Port Baud Rate
 #define DEFAULT_SYSLOG_FACILITY                 0                 // kern
 
+#define DEFAULT_SYNC_UDP_PORT                   0                 // Used for ESPEasy p2p. (IANA registered port: 8266)
+
 
 #define BUILD_NO_DEBUG
 
+
+// Special SSID/key setup only to be used in custom builds.
+
+// Deployment SSID will be used only when the configured SSIDs are not reachable and/or no credentials are set.
+// This to make deployment of large number of nodes easier
+#define CUSTOM_DEPLOYMENT_SSID                  ""                // Enter SSID not shown in UI, to be used on custom builds to ease deployment
+#define CUSTOM_DEPLOYMENT_KEY                   ""                // Enter key not shown in UI, to be used on custom builds to ease deployment
+#define CUSTOM_SUPPORT_SSID                     ""                // Enter SSID not shown in UI, to be used on custom builds to ease support
+#define CUSTOM_SUPPORT_KEY                      ""                // Enter key not shown in UI, to be used on custom builds to ease support
+
+
+// Emergency fallback SSID will only be attempted in the first 10 minutes after reboot.
+// When found, the unit will connect to it and depending on the built in flag, it will either just connect to it, or clear set credentials.
+// Use case: User connects to a public AP which does need to agree on an agreement page for the rules of conduct (e.g. open APs)
+// This is seen as a valid connection, so the unit will not reconnect to another node and thus becomes inaccessible.
+#define CUSTOM_EMERGENCY_FALLBACK_SSID          ""                // Enter SSID not shown in UI, to be used to regain access to the node
+#define CUSTOM_EMERGENCY_FALLBACK_KEY           ""                // Enter key not shown in UI, to be used to regain access to the node
+
+#define CUSTOM_EMERGENCY_FALLBACK_RESET_CREDENTIALS  false
+#define CUSTOM_EMERGENCY_FALLBACK_START_AP           false
+
+#define CUSTOM_EMERGENCY_FALLBACK_ALLOW_MINUTES_UPTIME 10
+
+#define USES_SSDP
+
+
 // #define USE_SETTINGS_ARCHIVE
+// #define FEATURE_I2CMULTIPLEXER
+// #define USE_TRIGONOMETRIC_FUNCTIONS_RULES
+
+/*
+ #######################################################################################################
+   Defining web interface
+ #######################################################################################################
+ */
+
+#define MENU_INDEX_MAIN_VISIBLE          true
+/*
+#define MENU_INDEX_CONFIG_VISIBLE        false
+#define MENU_INDEX_CONTROLLERS_VISIBLE   false
+#define MENU_INDEX_HARDWARE_VISIBLE      false
+#define MENU_INDEX_DEVICES_VISIBLE       false
+#define MENU_INDEX_RULES_VISIBLE         false
+#define MENU_INDEX_NOTIFICATIONS_VISIBLE false
+#define MENU_INDEX_TOOLS_VISIBLE         false
+*/
+
+#define MAIN_PAGE_SHOW_SYSINFO_BUTTON    true
+#define MAIN_PAGE_SHOW_WiFi_SETUP_BUTTON true
+#define MAIN_PAGE_SHOW_BASIC_INFO_NOT_LOGGED_IN false
+
+#define MAIN_PAGE_SHOW_NODE_LIST_BUILD   true
+#define MAIN_PAGE_SHOW_NODE_LIST_TYPE    true
+
+#define SETUP_PAGE_SHOW_CONFIG_BUTTON    true
+
+
+//#define WEBPAGE_TEMPLATE_HIDE_HELP_BUTTON
+
+
+/*
+ #######################################################################################################
+   CSS / template
+ #######################################################################################################
+ */
+/*
+#define WEBPAGE_TEMPLATE_DEFAULT_HEADER "<header class='headermenu'><h1>ESP Easy Mega: {{title}}</h1><BR>"
+#define WEBPAGE_TEMPLATE_DEFAULT_FOOTER "<footer><br><h6>Powered by <a href='http://www.letscontrolit.com' style='font-size: 15px; text-decoration: none'>Let's Control It</a> community</h6></footer></body></html>"
+#define WEBPAGE_TEMPLATE_AP_HEADER      "<body><header class='apheader'><h1>Welcome to ESP Easy Mega AP</h1>"
+#define WEBPAGE_TEMPLATE_HIDE_HELP_BUTTON
+*/
+// Embed Custom CSS in Custom.h:
+/*
+#define WEBSERVER_EMBED_CUSTOM_CSS
+static const char DATA_ESPEASY_DEFAULT_MIN_CSS[] PROGMEM = {
+...
+,0};
+*/
+
 
 /*
  #######################################################################################################
@@ -242,15 +345,43 @@
 // #define USES_P085   // AcuDC24x
 // #define USES_P086   // Receiving values according Homie convention. Works together with C014 Homie controller
 // #define USES_P087   // Serial Proxy
+// #define USES_P088   // HeatpumpIR
+// #define USES_P089   // Ping
+
+// #define USES_P090   // CCS811
+// #define USES_P091   // SerSwitch
+// #define USES_P092   // DLbus
+// #define USES_P093   // MitsubishiHP
+// #define USES_P094   // CULReader
+// #define USES_P095   // ILI9341
+// #define USES_P096   // eInk
+// #define USES_P097   // ESP32Touch
+// #define USES_P098   // 
+// #define USES_P099   // XPT2046 touchscreen
+
+// #define USES_P100   // DS2423 counter
+// #define USES_P101   // WakeOnLan
+// #define USES_P102   // PZEM004Tv3
+// #define USES_P103   // Atlas_EZO_pH
+// #define USES_P104   // Atlas_EZO_EC
+// #define USES_P105   // Atlas_EZO_ORP
+// #define USES_P106   // BME680
+// #define USES_P107   // Si1145
+// #define USES_P110   // VL53L0X Time of Flight sensor
+// #define USES_P111   // RF522 RFID reader
+// #define USES_P113   // VL53L1X ToF
+// #define USES_P115   // MAX1704x
 
 
 // Special plugins needing IR library
 // #define USES_P016   // IR
+// #define P016_SEND_IR_TO_CONTROLLER false //IF true then the JSON replay solution is transmited back to the condroller.
 // #define USES_P035   // IRTX
 // #define P016_P035_Extended_AC // The following define is needed for extended decoding of A/C Messages and or using standardised 
                                  //common arguments for controlling all deeply supported A/C units
-//#define P016_P035_USE_RAW_RAW2 //Use the RAW and RAW2 encodings, disabling it saves 3.7Kb
+// #define P016_P035_USE_RAW_RAW2 //Use the RAW and RAW2 encodings, disabling it saves 3.7Kb
 // #define USES_P088   // Heatpump IR
+// #define USES_P108   // DDS238-x ZN Modbus energy meters
 
 
 /*

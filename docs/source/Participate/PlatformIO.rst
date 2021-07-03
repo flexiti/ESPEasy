@@ -19,6 +19,40 @@ Both are free to use and are available for Windows, MacOS and Linux.
 
 Apart from these two, there are more available, like Eclipse and probably more.
 
+
+PlatformIO Prerequisites
+========================
+
+PlatformIO does need at least the following:
+
+* Python
+* Git command line tools (`download <https://git-scm.com/downloads>`_)
+
+For most operating systems, Python is already present, but for Windows you may need to install it.
+Starting October 2019, Python 3.x is supported in all build tools we use for ESPEasy.
+
+Please follow `these steps <https://docs.platformio.org/en/latest/faq.html#faq-install-python>`_ to 
+install Pyton in Windows for PlatformIO.
+
+**Do not forget to check "Add Python xxx to PATH".**
+
+Windows ExecutionPolicy
+-----------------------
+
+For PlatformIO 4.1.x and newer in Windows, you may need to change the Windows ExecutionPolicy 
+to be able to start a powershell script.
+PlatformIO does use a PowerShell script to activate the Python virtual environment.
+
+Default Windows security settings prevent execution of a PowerShell script.
+
+Enter in the PowerShell terminal window in VScode::
+
+    Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope CurrentUser
+
+Please note this does lower your security, so make sure you know its implications.
+See `Microsoft - About Execution Policies <https:/go.microsoft.com/fwlink/?LinkID=135170>`_ for more details.
+
+
 PlatformIO with Atom
 ====================
 
@@ -27,7 +61,7 @@ PlatformIO with Atom
 PlatformIO with VS-Code
 =======================
 
-install
+Install
 -------
 
 For development of ESPeasy, a number of extensions has to be installed in VS-Code:
@@ -35,15 +69,18 @@ For development of ESPeasy, a number of extensions has to be installed in VS-Cod
 * PlatformIO IDE (by PlatformIO)
 * C/C++ IntelliSense (by Microsoft)
 * Arduino for Visual Studio Code (by Microsoft)
-* Uncrustify (by Laurent Tréguier)
+* Uncrustify (by Zachary Flower, originally by Laurent Tréguier)
 
 Optional:
+
 * Bookmarks (by Alessandro Fragnani)
 * Bracket Pair Colorizer 2 (by CoenraadS)
 * GitLens - Git supercharged (by Eric Amodio)
 * Todo Tree (by Gruntfuggly)
 * All Autocomplete (by Atishay Jain)
 * Excel Viewer (by GrapeCity)
+* esbonio - An extension for editing sphinx projects (by Swyddfa)
+* Markdown All in One (by Yu Zhang)
 
 
 Uncrustify
@@ -79,6 +116,7 @@ An environment entry has several tasks, like:
 * Upload
 * Monitor
 * Upload and Monitor
+* Clean
 * ... many more.
 
 Some of these options only are available when you have registered with PlatformIO and some are only for paid subscriptions.
@@ -88,25 +126,30 @@ The environment definitions all have at least the used micro controller in the n
 
 For example:
 
-* ..._ESP8266_4M -> ESP8266 has external flash, which can vary in size from 512 kB to 16 MB.
+* ..._ESP8266_4Mnn -> ESP8266 has external flash, which can vary in size from 512 kB to 16 MB, with nn configured as filesystem.
 * ..._ESP8285_1M -> ESP8285 has the flash internal, so is always 1 MB.
-* ..._ESP32_1M8_partition -> ESP32 with 4 MB flash and a 1.8 MB partition for the sketch.
+* ..._ESP32_4M316k -> ESP32 with 4 MB flash and a 1.8 MB partition for the sketch. (316k SPIFFS)
+* ..._ESP32_16M2M -> ESP32 with 16 MB flash and a 4 MB partition for the sketch. (2MB LittleFS)
 
 Make a custom build using PlatformIO
 ------------------------------------
 
-The easiest is to go for the environment "env:custom_ESP8266_4M" and unfold that one.
+The easiest is to go for the environment "custom_ESP8266_4M1M" and unfold that one.
 Then select "Build" to see if it will start building.
 
-If that's working, you can open the file "pre_extra_script.py" and add or remove the plugins and controllers you need.
-That Python file is used in the "env:custom_ESP8266_4M" to define what should be embedded and what not.
+If that's working, you can open the file "pre_custom_esp8266.py" and add or remove the plugins and controllers you need.
+That Python file is used in the "env:custom_ESP8266_4M1M" (or any "custom" build environment) to define what should be embedded and what not.
 
 For example to have only the controller "C014", you can remove "CONTROLLER_SET_ALL", and just add "USES_C014", 
 The same for the plugins you need.
 
 The file is built in the ".pio/build/...." directory right under the main repository directory (the one with the platformio.ini in it)
 
+Instead of modifying "pre_custom_esp8266.py" (or "pre_custom_esp32.py" for that matter), one can also copy "src/Custom-sample.h" to "src/Custom.h" and make the desired changed in this file. This file is excluded from Github, so can be adjusted to your own requirements. When the Custom.h file is there (mind the uppercase C!), it will be used by the build scripts instead of the defaults set by "pre_custom_esp8266.py" (or "pre_custom_esp32.py").
+
 All builds will be made in a directory with the same name as the environment used.
+
+Once the build is successful, the .bin file(s) and .bin.gz file (where applicable) are copied to the ``build_output/bin`` folder.
 
 
 

@@ -1,7 +1,9 @@
+#include "_Plugin_Helper.h"
 #ifdef USES_P086
 //#######################################################################################################
 //################################## Plugin 086: Homie receiver##########################################
 //#######################################################################################################
+
 
 #define PLUGIN_086
 #define PLUGIN_ID_086         86
@@ -37,7 +39,7 @@ boolean Plugin_086(byte function, struct EventStruct *event, String& string)
       {
         Device[++deviceCount].Number = PLUGIN_ID_086;
         Device[deviceCount].Type = DEVICE_TYPE_DUMMY;
-        Device[deviceCount].VType = SENSOR_TYPE_NONE;
+        Device[deviceCount].VType = Sensor_VType::SENSOR_TYPE_NONE;
         Device[deviceCount].Ports = 0;
         Device[deviceCount].PullUpOption = false;
         Device[deviceCount].InverseLogicOption = false;
@@ -72,9 +74,9 @@ boolean Plugin_086(byte function, struct EventStruct *event, String& string)
         addFormNote(F("Translation Plugin for controllers able to receive value updates according to the Homie convention."));
 
         byte choice = 0;
-        String labelText = "";
-        String keyName = "";
-        String options[PLUGIN_086_VALUE_TYPES];
+        String labelText;
+        String keyName;
+        const __FlashStringHelper * options[PLUGIN_086_VALUE_TYPES];
         options[0] = F("integer");
         options[1] = F("float");
         options[2] = F("boolean");
@@ -126,7 +128,7 @@ boolean Plugin_086(byte function, struct EventStruct *event, String& string)
 
     case PLUGIN_WEBFORM_SAVE:
       {
-        String keyName = "";
+        String keyName;
         for (int i=0;i<PLUGIN_086_VALUE_MAX;i++) {
           keyName = F("p086_valueType");
           keyName += i;
@@ -160,7 +162,7 @@ boolean Plugin_086(byte function, struct EventStruct *event, String& string)
           String log = F("P086 : Value ");
           log += x+1;
           log += F(": ");
-          log += UserVar[event->BaseVarIndex+x];
+          log += formatUserVarNoCheck(event->TaskIndex, x);
           addLog(LOG_LEVEL_INFO,log);
         }
         success = true;
@@ -172,17 +174,22 @@ boolean Plugin_086(byte function, struct EventStruct *event, String& string)
         String command = parseString(string, 1);
         if (command == F("homievalueset"))
         {
-          if (event->Par1 == event->TaskIndex+1) {// make sure that this instance is the target
-            LoadTaskSettings(event->Par1 -1);
+          const taskVarIndex_t taskVarIndex = event->Par2 - 1;
+          const userVarIndex_t userVarIndex = event->BaseVarIndex + taskVarIndex;
+          if (validTaskIndex(event->TaskIndex) && 
+              validTaskVarIndex(taskVarIndex) && 
+              validUserVarIndex(userVarIndex) &&  
+              (event->Par1 == (event->TaskIndex + 1))) {// make sure that this instance is the target
+            LoadTaskSettings(event->TaskIndex);
             String parameter = parseStringToEndKeepCase(string,4);
-            String log = "";
+            String log;
 /*            if (loglevelActiveFor(LOG_LEVEL_DEBUG)) {
               log = F("P086 : Acknowledge :");
               log += string;
               log += F(" / ");
               log += ExtraTaskSettings.TaskDeviceName;
               log += F(" / ");
-              log += ExtraTaskSettings.TaskDeviceValueNames[event->Par2-1];
+              log += ExtraTaskSettings.TaskDeviceValueNames[taskVarIndex];
               log += F(" sensorType:");
               log += event->sensorType;
               log += F(" Source:");
@@ -212,28 +219,28 @@ boolean Plugin_086(byte function, struct EventStruct *event, String& string)
               addLog(LOG_LEVEL_DEBUG, log);
             } */
             float floatValue = 0;
-            String enumList = "";
+            String enumList;
             int i = 0;
             if (loglevelActiveFor(LOG_LEVEL_INFO)) {
               log = F("P086 : deviceNr:");
-              log += event->Par1;
+              log += event->TaskIndex + 1;
               log += F(" valueNr:");
               log += event->Par2;
               log += F(" valueType:");
-              log += Settings.TaskDevicePluginConfig[event->Par1-1][event->Par2-1];
+              log += Settings.TaskDevicePluginConfig[event->TaskIndex][taskVarIndex];
             }
 
-            switch (Settings.TaskDevicePluginConfig[event->Par1-1][event->Par2-1]) {
+            switch (Settings.TaskDevicePluginConfig[event->TaskIndex][taskVarIndex]) {
               case PLUGIN_086_VALUE_INTEGER:
               case PLUGIN_086_VALUE_FLOAT:
-                if (parameter!="") {
+                if (!parameter.isEmpty()) {
                   if (string2float(parameter,floatValue)) {
                     if (loglevelActiveFor(LOG_LEVEL_INFO)) {
                       log += F(" integer/float set to ");
                       log += floatValue;
                       addLog(LOG_LEVEL_INFO,log);
                     }
-                    UserVar[event->BaseVarIndex+event->Par2-1]=floatValue;
+                    UserVar[userVarIndex]=floatValue;
                   } else { // float conversion failed!
                     if (loglevelActiveFor(LOG_LEVEL_ERROR)) {
                       log += F(" parameter:");
@@ -245,7 +252,7 @@ boolean Plugin_086(byte function, struct EventStruct *event, String& string)
                 } else {
                   if (loglevelActiveFor(LOG_LEVEL_INFO)) {
                     log += F(" value:");
-                    log += UserVar[event->BaseVarIndex+event->Par2-1];
+                    log += UserVar[userVarIndex];
                     addLog(LOG_LEVEL_INFO,log);
                   }
                 }
@@ -257,7 +264,7 @@ boolean Plugin_086(byte function, struct EventStruct *event, String& string)
                 } else {
                   floatValue = 1;
                 }
-                UserVar[event->BaseVarIndex+event->Par2-1]=floatValue;
+                UserVar[userVarIndex]=floatValue;
                 if (loglevelActiveFor(LOG_LEVEL_INFO)) {
                   log += F(" boolean set to ");
                   log += floatValue;
@@ -267,7 +274,7 @@ boolean Plugin_086(byte function, struct EventStruct *event, String& string)
 
               case PLUGIN_086_VALUE_STRING:
                 //String values not stored to conserve flash memory
-                //safe_strncpy(ExtraTaskSettings.TaskDeviceFormula[event->Par2-1], parameter.c_str(), sizeof(ExtraTaskSettings.TaskDeviceFormula[event->Par2-1]));
+                //safe_strncpy(ExtraTaskSettings.TaskDeviceFormula[taskVarIndex], parameter.c_str(), sizeof(ExtraTaskSettings.TaskDeviceFormula[taskVarIndex]));
                 if (loglevelActiveFor(LOG_LEVEL_INFO)) {
                   log += F(" string set to ");
                   log += parameter;
@@ -276,16 +283,16 @@ boolean Plugin_086(byte function, struct EventStruct *event, String& string)
                 break;
 
               case PLUGIN_086_VALUE_ENUM:
-                enumList = ExtraTaskSettings.TaskDeviceFormula[event->Par2-1];
+                enumList = ExtraTaskSettings.TaskDeviceFormula[taskVarIndex];
                 i = 1;
-                while (parseString(enumList,i)!="") { // lookup result in enum List
+                while (!parseString(enumList,i).isEmpty()) { // lookup result in enum List
                   if (parseString(enumList,i)==parameter) {
                     floatValue = i;
                     break;
                   }
                   i++;
                 }
-                UserVar[event->BaseVarIndex+event->Par2-1]=floatValue;
+                UserVar[userVarIndex]=floatValue;
                 if (loglevelActiveFor(LOG_LEVEL_INFO)) {
                   log += F(" enum set to ");
                   log += floatValue;
@@ -298,7 +305,7 @@ boolean Plugin_086(byte function, struct EventStruct *event, String& string)
 
               case PLUGIN_086_VALUE_RGB:
                 //String values not stored to conserve flash memory
-                //safe_strncpy(ExtraTaskSettings.TaskDeviceFormula[event->Par2-1], parameter.c_str(), sizeof(ExtraTaskSettings.TaskDeviceFormula[event->Par2-1]));
+                //safe_strncpy(ExtraTaskSettings.TaskDeviceFormula[taskVarIndex], parameter.c_str(), sizeof(ExtraTaskSettings.TaskDeviceFormula[taskVarIndex]));
                 if (loglevelActiveFor(LOG_LEVEL_INFO)) {
                   log += F(" RGB received ");
                   log += parameter;
@@ -308,7 +315,7 @@ boolean Plugin_086(byte function, struct EventStruct *event, String& string)
 
               case PLUGIN_086_VALUE_HSV:
                 //String values not stored to conserve flash memory
-                //safe_strncpy(ExtraTaskSettings.TaskDeviceFormula[event->Par2-1], parameter.c_str(), sizeof(ExtraTaskSettings.TaskDeviceFormula[event->Par2-1]));
+                //safe_strncpy(ExtraTaskSettings.TaskDeviceFormula[taskVarIndex], parameter.c_str(), sizeof(ExtraTaskSettings.TaskDeviceFormula[taskVarIndex]));
                 if (loglevelActiveFor(LOG_LEVEL_INFO)) {
                   log += F(" HSV received ");
                   log += parameter;
@@ -319,9 +326,9 @@ boolean Plugin_086(byte function, struct EventStruct *event, String& string)
             success = true;
           }
         }
-        break;
       }
-  }
+      break;
+    }
   return success;
 }
 #endif // USES_P086

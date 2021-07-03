@@ -1,25 +1,42 @@
-#include "Common.h"
+#include "../Commands/Common.h"
 
 #include <ctype.h>
 #include <IPAddress.h>
+
 #include "../../ESPEasy_common.h"
-#include "../../ESPEasy_fdwdecl.h"
+
 #include "../DataStructs/ESPEasy_EventStruct.h"
-#include "../DataStructs/EventValueSource.h"
+#include "../DataTypes/EventValueSource.h"
+
+#include "../ESPEasyCore/ESPEasyWifi.h"
+#include "../ESPEasyCore/Serial.h"
+
+#include "../Helpers/Numerical.h"
+#include "../Helpers/StringConverter.h"
 
 
 // Simple function to return "Ok", to avoid flash string duplication in the firmware.
-String return_command_success()
+const __FlashStringHelper * return_command_success()
 {
   return F("\nOk");
 }
 
-String return_command_failed()
+const __FlashStringHelper * return_command_failed()
 {
   return F("\nFailed");
 }
 
-String return_not_connected()
+const __FlashStringHelper * return_incorrect_nr_arguments()
+{
+  return F("Too many arguments, try using quotes!");
+}
+
+const __FlashStringHelper * return_incorrect_source()
+{
+  return F("Command not allowed from this source!");
+}
+
+const __FlashStringHelper * return_not_connected()
 {
   return F("Not connected to WiFi");
 }
@@ -28,43 +45,26 @@ String return_result(struct EventStruct *event, const String& result)
 {
   serialPrintln(result);
 
-  if (event->Source == VALUE_SOURCE_SERIAL) {
+  if (event->Source == EventValueSource::Enum::VALUE_SOURCE_SERIAL) {
     return return_command_success();
   }
   return result;
 }
 
-String return_see_serial(struct EventStruct *event)
+const __FlashStringHelper * return_see_serial(struct EventStruct *event)
 {
-  if (event->Source == VALUE_SOURCE_SERIAL) {
+  if (event->Source == EventValueSource::Enum::VALUE_SOURCE_SERIAL) {
     return return_command_success();
   }
   return F("Output sent to serial");
 }
 
-bool IsNumeric(const char *source)
-{
-  bool result = false;
-
-  if (source) {
-    int len = strlen(source);
-
-    if (len != 0) {
-      int i;
-
-      for (i = 0; i < len && isdigit(source[i]); i++) {}
-      result = i == len;
-    }
-  }
-  return result;
-}
-
-String Command_GetORSetIP(struct EventStruct        *event,
-                          const __FlashStringHelper *targetDescription,
-                          const char                *Line,
-                          byte                      *IP,
-                          IPAddress                  dhcpIP,
-                          int                        arg)
+String Command_GetORSetIP(struct EventStruct *event,
+                          const String      & targetDescription,
+                          const char         *Line,
+                          byte               *IP,
+                          const IPAddress   & dhcpIP,
+                          int                 arg)
 {
   bool hasArgument = false;
   {
@@ -97,12 +97,12 @@ String Command_GetORSetIP(struct EventStruct        *event,
   return return_command_success();
 }
 
-String Command_GetORSetString(struct EventStruct        *event,
-                              const __FlashStringHelper *targetDescription,
-                              const char                *Line,
-                              char                      *target,
-                              size_t                     len,
-                              int                        arg
+String Command_GetORSetString(struct EventStruct *event,
+                              const String      & targetDescription,
+                              const char         *Line,
+                              char               *target,
+                              size_t              len,
+                              int                 arg
                               )
 {
   bool hasArgument = false;
@@ -119,9 +119,8 @@ String Command_GetORSetString(struct EventStruct        *event,
         result += len;
         serialPrintln();
         return return_result(event, result);
-      } else {
-        strcpy(target, TmpStr1.c_str());
       }
+      safe_strncpy(target, TmpStr1, len);
     }
   }
 
@@ -134,11 +133,11 @@ String Command_GetORSetString(struct EventStruct        *event,
   return return_command_success();
 }
 
-String Command_GetORSetBool(struct EventStruct        *event,
-                            const __FlashStringHelper *targetDescription,
-                            const char                *Line,
-                            bool                      *value,
-                            int                        arg)
+String Command_GetORSetBool(struct EventStruct *event,
+                            const String      & targetDescription,
+                            const char         *Line,
+                            bool               *value,
+                            int                 arg)
 {
   bool hasArgument = false;
   {
@@ -149,8 +148,9 @@ String Command_GetORSetBool(struct EventStruct        *event,
       hasArgument = true;
       TmpStr1.toLowerCase();
 
-      if (IsNumeric(TmpStr1.c_str())) {
-        *value = atoi(TmpStr1.c_str()) > 0;
+      int tmp_int = 0;
+      if (validIntFromString(TmpStr1, tmp_int)) {
+        *value = tmp_int > 0;
       }
       else if (strcmp_P(PSTR("on"), TmpStr1.c_str()) == 0) { *value = true; }
       else if (strcmp_P(PSTR("true"), TmpStr1.c_str()) == 0) { *value = true; }
@@ -161,7 +161,69 @@ String Command_GetORSetBool(struct EventStruct        *event,
 
   if (hasArgument) {
     String result = targetDescription;
-    result += toString(*value);
+    result += boolToString(*value);
+    return return_result(event, result);
+  }
+  return return_command_success();
+}
+
+String Command_GetORSetUint8_t(struct EventStruct *event,
+                            const String      & targetDescription,
+                            const char         *Line,
+                            uint8_t            *value,
+                            int                 arg)
+{
+  bool hasArgument = false;
+  {
+    // Check if command is valid. Leave in separate scope to delete the TmpStr1
+    String TmpStr1;
+
+    if (GetArgv(Line, TmpStr1, arg + 1)) {
+      hasArgument = true;
+      TmpStr1.toLowerCase();
+
+      int tmp_int = 0;
+      if (validIntFromString(TmpStr1, tmp_int)) {
+        *value = static_cast<uint8_t>(tmp_int);
+      }
+      else if (strcmp_P(PSTR("WIFI"), TmpStr1.c_str()) == 0) { *value = 0; }
+      else if (strcmp_P(PSTR("ETHERNET"), TmpStr1.c_str()) == 0) { *value = 1; }
+    }
+  }
+
+  if (hasArgument) {
+    String result = targetDescription;
+    result += *value;
+    return return_result(event, result);
+  }
+  return return_command_success();
+}
+
+String Command_GetORSetInt8_t(struct EventStruct *event,
+                            const String      & targetDescription,
+                            const char         *Line,
+                            int8_t             *value,
+                            int                 arg)
+{
+  bool hasArgument = false;
+  {
+    // Check if command is valid. Leave in separate scope to delete the TmpStr1
+    String TmpStr1;
+
+    if (GetArgv(Line, TmpStr1, arg + 1)) {
+      hasArgument = true;
+      TmpStr1.toLowerCase();
+
+      int tmp_int = 0;
+      if (validIntFromString(TmpStr1, tmp_int)) {
+        *value = static_cast<int8_t>(tmp_int);
+      }
+    }
+  }
+
+  if (hasArgument) {
+    String result = targetDescription;
+    result += *value;
     return return_result(event, result);
   }
   return return_command_success();

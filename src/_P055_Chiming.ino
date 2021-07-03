@@ -1,3 +1,4 @@
+#include "_Plugin_Helper.h"
 #ifdef USES_P055
 //#######################################################################################################
 //#################################### Plugin 055: Chiming Mechanism ####################################
@@ -48,6 +49,8 @@
 
 
 //#include <*.h>   - no external lib required
+
+#include "src/WebServer/Markup_Buttons.h"
 
 #define PLUGIN_055
 #define PLUGIN_ID_055         55
@@ -101,7 +104,7 @@ boolean Plugin_055(byte function, struct EventStruct *event, String& string)
         Device[++deviceCount].Number = PLUGIN_ID_055;
         Device[deviceCount].Type = DEVICE_TYPE_TRIPLE;
         Device[deviceCount].Ports = 0;
-        Device[deviceCount].VType = SENSOR_TYPE_NONE;
+        Device[deviceCount].VType = Sensor_VType::SENSOR_TYPE_NONE;
         Device[deviceCount].PullUpOption = false;
         Device[deviceCount].InverseLogicOption = true;
         Device[deviceCount].FormulaOption = false;
@@ -136,7 +139,7 @@ boolean Plugin_055(byte function, struct EventStruct *event, String& string)
           PCONFIG(1) = 400;
 
         // FIXME TD-er: Should we add support for 4 pin definitions?
-        addFormPinSelect(formatGpioName_output(F("Driver#8")), F("TDP4"), (int)(Settings.TaskDevicePin[3][event->TaskIndex]));
+        addFormPinSelect(PinSelectPurpose::Generic_output, formatGpioName_output(F("Driver#8")), F("TDP4"), (int)(Settings.TaskDevicePin[3][event->TaskIndex]));
 
         addFormSubHeader(F("Timing"));
 
@@ -249,9 +252,9 @@ boolean Plugin_055(byte function, struct EventStruct *event, String& string)
           if (!Plugin_055_Data)
             break;
 
-          String tokens = "";
-          byte hours = hour();
-          byte minutes = minute();
+          String tokens;
+          byte hours = node_time.hour();
+          byte minutes = node_time.minute();
 
           if (Plugin_055_Data->chimeClock)
           {
@@ -424,7 +427,7 @@ boolean Plugin_055_IsEmptyFIFO()
 
 void Plugin_055_AddStringFIFO(const String& param)
 {
-  if (param.length() == 0)
+  if (param.isEmpty())
     return;
 
   byte i = 0;

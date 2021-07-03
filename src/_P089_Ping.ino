@@ -1,3 +1,4 @@
+#include "_Plugin_Helper.h"
 #if defined(USES_P089) && defined(ESP8266)
 //#######################################################################################################
 //#################### Plugin 089 ICMP Ping probing ##############
@@ -18,6 +19,9 @@ extern "C"
 #include <lwip/sys.h> // needed for sys_now()
 #include <lwip/netif.h>
 }
+
+#include "src/ESPEasyCore/ESPEasyNetwork.h"
+
 
 #define PLUGIN_089
 #define PLUGIN_ID_089             89
@@ -42,10 +46,12 @@ public:
     destIPAddress.addr = 0;
     idseq = 0;
     if (nullptr == P089_data) {
-      P089_data = new P089_icmp_pcb();
-      P089_data->m_IcmpPCB = raw_new(IP_PROTO_ICMP);
-      raw_recv(P089_data->m_IcmpPCB, PingReceiver, NULL);
-      raw_bind(P089_data->m_IcmpPCB, IP_ADDR_ANY);
+      P089_data = new (std::nothrow) P089_icmp_pcb();
+      if (P089_data != nullptr) {
+        P089_data->m_IcmpPCB = raw_new(IP_PROTO_ICMP);
+        raw_recv(P089_data->m_IcmpPCB, PingReceiver, NULL);
+        raw_bind(P089_data->m_IcmpPCB, IP_ADDR_ANY);
+      }
     } else {
       P089_data->instances++;
     }
@@ -74,7 +80,7 @@ public:
       is_failure = true;
 
     /* This ping lost for sure */
-    if (!WiFiConnected()) {
+    if (!NetworkConnected()) {
       return true;
     }
 
@@ -134,7 +140,7 @@ boolean Plugin_089(byte function, struct EventStruct *event, String& string)
   {
     Device[++deviceCount].Number = PLUGIN_ID_089;
     Device[deviceCount].Type = DEVICE_TYPE_DUMMY;
-    Device[deviceCount].VType = DEVICE_TYPE_SINGLE;
+    Device[deviceCount].VType = Sensor_VType::SENSOR_TYPE_SINGLE;
     Device[deviceCount].Ports = 0;
     Device[deviceCount].ValueCount = 1;
     Device[deviceCount].PullUpOption = false;
@@ -162,7 +168,7 @@ boolean Plugin_089(byte function, struct EventStruct *event, String& string)
   {
     char hostname[PLUGIN_089_HOSTNAME_SIZE];
     LoadCustomTaskSettings(event->TaskIndex, (byte*)&hostname, PLUGIN_089_HOSTNAME_SIZE);
-    addFormTextBox(String(F("Hostname")), F("p089_ping_host"), hostname, PLUGIN_089_HOSTNAME_SIZE - 2);
+    addFormTextBox(F("Hostname"), F("p089_ping_host"), hostname, PLUGIN_089_HOSTNAME_SIZE - 2);
     success = true;
     break;
   }
@@ -172,7 +178,7 @@ boolean Plugin_089(byte function, struct EventStruct *event, String& string)
     char hostname[PLUGIN_089_HOSTNAME_SIZE];
     // Reset "Fails" if settings updated
     UserVar[event->BaseVarIndex] = 0;
-    strncpy(hostname,  WebServer.arg(F("p089_ping_host")).c_str() , sizeof(hostname));
+    strncpy(hostname,  webArg(F("p089_ping_host")).c_str() , sizeof(hostname));
     SaveCustomTaskSettings(event->TaskIndex, (byte*)&hostname, PLUGIN_089_HOSTNAME_SIZE);
     success = true;
     break;
@@ -180,15 +186,9 @@ boolean Plugin_089(byte function, struct EventStruct *event, String& string)
 
   case PLUGIN_INIT:
   {
-    initPluginTaskData(event->TaskIndex, new P089_data_struct());
+    initPluginTaskData(event->TaskIndex, new (std::nothrow) P089_data_struct());
     UserVar[event->BaseVarIndex] = 0;
     success = true;
-    break;
-  }
-
-  case PLUGIN_EXIT:
-  {
-    clearPluginTaskData(event->TaskIndex);
     break;
   }
 
@@ -212,8 +212,8 @@ boolean Plugin_089(byte function, struct EventStruct *event, String& string)
     if (command == F("pingset"))
     {
       String taskName = parseString(string, 2);
-      int8_t taskIndex = getTaskIndexByName(taskName);
-      if (taskIndex != -1 && taskIndex == event->TaskIndex) {
+      taskIndex_t taskIndex = findTaskIndexByName(taskName);
+      if (taskIndex != TASKS_MAX && taskIndex == event->TaskIndex) {
         success = true;
         String param1 = parseString(string, 3);
         int val_new;
@@ -254,12 +254,11 @@ uint8_t PingReceiver (void *origin, struct raw_pcb *pcb, struct pbuf *packetBuff
     return 0;
   }
 
-  uint8_t index;
   bool is_found = false;
-  for (index = 0; index < TASKS_MAX; index++) {
-    int plugin = getPluginId(index);
+  for (taskIndex_t index = 0; index < TASKS_MAX; index++) {
+    deviceIndex_t deviceIndex = getDeviceIndex_from_TaskIndex(index);
     // Match all ping plugin instances and check them
-    if (plugin > 0 && Plugin_id[plugin] == PLUGIN_ID_089) {
+    if (validDeviceIndex(deviceIndex) && DeviceIndex_to_Plugin_id[deviceIndex] == PLUGIN_ID_089) {
       P089_data_struct *P089_taskdata = static_cast<P089_data_struct *>(getPluginTaskData(index));
       if (P089_taskdata != nullptr && icmp_hdr->id == (uint16_t)((P089_taskdata->idseq & 0xffff0000) >> 16 ) &&
           icmp_hdr->seqno == (uint16_t)(P089_taskdata->idseq & 0xffff) ) {

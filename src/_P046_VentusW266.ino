@@ -1,3 +1,4 @@
+#include "_Plugin_Helper.h"
 #ifdef USES_P046
 //#######################################################################################################
 //#################################### Plugin 046: Ventus W266 [Testing] ################################
@@ -76,6 +77,8 @@
 // CRC calculation is based on the works by Paul Stoffregen from the 1-Wire arduino library. Special
 // thanks to Greg Cook and the team behind reveng.sourceforge.net.
 
+
+
 //edwin: Disabled for now: hardware is not generic enough and  uses lots of ram and iram,
 #ifdef PLUGIN_BUILD_DISABLED
 
@@ -137,7 +140,7 @@ boolean Plugin_046(byte function, struct EventStruct *event, String& string)
       {
         Device[++deviceCount].Number = PLUGIN_ID_046;
         Device[deviceCount].Type = DEVICE_TYPE_DUMMY;           // Nothing else really fit the bill ...
-        Device[deviceCount].VType = SENSOR_TYPE_DUAL;           // New type, see ESPEasy.ino
+        Device[deviceCount].VType = Sensor_VType::SENSOR_TYPE_DUAL;           // New type, see ESPEasy.ino
         Device[deviceCount].Ports = 0;
         Device[deviceCount].PullUpOption = false;
         Device[deviceCount].InverseLogicOption = false;
@@ -150,30 +153,28 @@ boolean Plugin_046(byte function, struct EventStruct *event, String& string)
     case PLUGIN_WEBFORM_LOAD:
       {
         byte choice = PCONFIG(0);
-        byte nrchoices = 9;
-        String options[nrchoices];
-        options[0] = F("Main + Temp/Hygro");
-        options[1] = F("Wind");
-        options[2] = F("Rain");
-        options[3] = F("UV");
-        options[4] = F("Lightning strikes");
-        options[5] = F("Lightning distance");
+        {
+          const byte nrchoices = 9;
+          const __FlashStringHelper * options[nrchoices];
+          options[0] = F("Main + Temp/Hygro");
+          options[1] = F("Wind");
+          options[2] = F("Rain");
+          options[3] = F("UV");
+          options[4] = F("Lightning strikes");
+          options[5] = F("Lightning distance");
 
-        options[6] = F("Unknown 1, byte 6");
-        options[7] = F("Unknown 2, byte 16");
-        options[8] = F("Unknown 3, byte 19");
+          options[6] = F("Unknown 1, byte 6");
+          options[7] = F("Unknown 2, byte 16");
+          options[8] = F("Unknown 3, byte 19");
 
-        addFormSelector(F("Plugin function"), F("p046"), nrchoices, options, NULL, choice);
+          addFormSelector(F("Plugin function"), F("p046"), nrchoices, options, NULL, choice);
+        }
 
         if (choice==0) {
-          addHtml(F("<TR><TD>1st GPIO (5-MOSI):<TD>"));
-          addPinSelect(false, "taskdevicepin1", PCONFIG(1));
-          addHtml(F("<TR><TD>2nd GPIO (6-SCLK):<TD>"));
-          addPinSelect(false, "taskdevicepin2", PCONFIG(2));
-          addHtml(F("<TR><TD>3rd GPIO (7-nSEL):<TD>"));
-          addPinSelect(false, "taskdevicepin3", PCONFIG(3));
-          addHtml(F("<TR><TD>4th GPIO (8-MISO):<TD>"));
-          addPinSelect(false, "taskdeviceport", PCONFIG(4));
+          addFormPinSelect(PinSelectPurpose::SPI, F("1st GPIO (5-MOSI)"), F("taskdevicepin1"), PCONFIG(1));
+          addFormPinSelect(PinSelectPurpose::SPI, F("2nd GPIO (6-SCLK)"), F("taskdevicepin2"), PCONFIG(2));
+          addFormPinSelect(PinSelectPurpose::SPI, F("3rd GPIO (7-nSEL)"), F("taskdevicepin3"), PCONFIG(3));
+          addFormPinSelect(PinSelectPurpose::SPI, F("4th GPIO (8-MISO)"), F("taskdeviceport"), PCONFIG(4));
         }
 
         switch (choice)
@@ -334,7 +335,7 @@ boolean Plugin_046(byte function, struct EventStruct *event, String& string)
             P046_data->Plugin_046_newData = false;
             if (PLUGIN_046_DEBUG) {
               String log = F("Ventus W266 Rcvd(");
-              log += getTimeString(':');
+              log += node_time.getTimeString(':');
               log += F(") ");
               for (int i = 0; i < Plugin_046_Payload; i++) {
                 if ((i==2)||(i==3)||(i==4)||(i==9)||(i==10)||(i==14)||(i==17)||(i==18)||(i==20)) {
@@ -379,23 +380,23 @@ boolean Plugin_046(byte function, struct EventStruct *event, String& string)
             {
               int myTemp = int((P046_data->Plugin_046_databuffer[5] * 256) + P046_data->Plugin_046_databuffer[4]);
               if (myTemp > 0x8000) { myTemp |= 0xffff0000; }                    // int @ esp8266 = 32 bits!
-              float temperature = float(myTemp) / 10.0; // Temperature
+              float temperature = float(myTemp) / 10.0f; // Temperature
               byte myHum = (P046_data->Plugin_046_databuffer[2] >> 4) * 10 + (P046_data->Plugin_046_databuffer[2] & 0x0f);
               float humidity = float(myHum);
               UserVar[event->BaseVarIndex] = temperature;
               UserVar[event->BaseVarIndex + 1] = humidity;
-              event->sensorType = SENSOR_TYPE_TEMP_HUM;
+              event->sensorType = Sensor_VType::SENSOR_TYPE_TEMP_HUM;
               break;
             }
             case (1):
             {
               float average = float((P046_data->Plugin_046_databuffer[11] << 8) + P046_data->Plugin_046_databuffer[10]) / 10;   // Wind speed average in m/s
               float gust = float((P046_data->Plugin_046_databuffer[13] << 8) + P046_data->Plugin_046_databuffer[12]) / 10;      // Wind speed gust in m/s
-              float bearing = float(P046_data->Plugin_046_databuffer[9] & 0x0f) * 22.5;                              // Wind bearing (0-359)
+              float bearing = float(P046_data->Plugin_046_databuffer[9] & 0x0f) * 22.5f;                              // Wind bearing (0-359)
               UserVar[event->BaseVarIndex] = bearing;                                                     // degrees
               UserVar[event->BaseVarIndex + 1] = average;
               UserVar[event->BaseVarIndex + 2] = gust;
-              event->sensorType = SENSOR_TYPE_WIND;
+              event->sensorType = Sensor_VType::SENSOR_TYPE_WIND;
               break;
             }
             case (2):
@@ -445,7 +446,7 @@ boolean Plugin_046(byte function, struct EventStruct *event, String& string)
             }
             case (5):
             {
-              float distance = float(-1);
+              float distance = -1.0f;
               if (P046_data->Plugin_046_databuffer[18] != 0x3F )
               {
                 distance = float(P046_data->Plugin_046_databuffer[18]);

@@ -3,26 +3,46 @@
 
 #include "../../ESPEasy_common.h"
 #include <map>
+#include "../Globals/Plugins.h"
 
 /*********************************************************************************************\
- * systemTimerStruct
+* systemTimerStruct
 \*********************************************************************************************/
 struct systemTimerStruct
 {
-  systemTimerStruct() :
-    timer(0), Par1(0), Par2(0), Par3(0), Par4(0), Par5(0), TaskIndex(-1), plugin(0) {}
+  systemTimerStruct() {}
 
-  unsigned long timer;
-  int Par1;
-  int Par2;
-  int Par3;
-  int Par4;
-  int Par5;
-  int16_t TaskIndex;
-  byte plugin;
+  int         Par1      = 0;
+  int         Par2      = 0;
+  int         Par3      = 0;
+  int         Par4      = 0;
+  int         Par5      = 0;
+  taskIndex_t TaskIndex = INVALID_TASK_INDEX;
+
+
+  // ***************
+  // Rules Timer use
+  // ***************
+  systemTimerStruct(int           recurringCount,
+                    unsigned long msecFromNow,
+                    unsigned int  timerIndex);
+
+  bool          isRecurring() const;
+
+  void          markNextRecurring();
+
+  unsigned long getInterval() const;
+
+  unsigned int  getTimerIndex() const;
+
+  bool          isPaused() const;
+
+  int           getRemainder() const;
+
+  void          setRemainder(int timeLeft);
+
+  int           getLoopCount() const;
 };
-std::map<unsigned long, systemTimerStruct> systemTimers;
-
 
 
 #endif // DATASTRUCTS_SYSTEMTIMERSTRUCT_H

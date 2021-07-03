@@ -1,3 +1,4 @@
+#include "_Plugin_Helper.h"
 #ifdef USES_P065
 //#######################################################################################################
 //############################# Plugin 065: P065_DFR0299_MP3 ############################################
@@ -36,6 +37,7 @@
 #include <ESPeasySerial.h>
 
 
+
 ESPeasySerial* P065_easySerial = NULL;
 
 
@@ -50,7 +52,7 @@ boolean Plugin_065(byte function, struct EventStruct *event, String& string)
       {
         Device[++deviceCount].Number = PLUGIN_ID_065;
         Device[deviceCount].Type = DEVICE_TYPE_SINGLE;
-        Device[deviceCount].VType = SENSOR_TYPE_NONE;
+        Device[deviceCount].VType = Sensor_VType::SENSOR_TYPE_NONE;
         Device[deviceCount].Ports = 0;
         Device[deviceCount].PullUpOption = false;
         Device[deviceCount].InverseLogicOption = false;
@@ -100,13 +102,13 @@ boolean Plugin_065(byte function, struct EventStruct *event, String& string)
         #pragma GCC diagnostic pop
 
 
-        P065_easySerial = new ESPeasySerial(-1, CONFIG_PIN1);   // no RX, only TX
+        P065_easySerial = new (std::nothrow) ESPeasySerial(static_cast<ESPEasySerialPort>(CONFIG_PORT), -1, CONFIG_PIN1);   // no RX, only TX
+        if (P065_easySerial != nullptr) {
+          P065_easySerial->begin(9600);
+          Plugin_065_SetVol(PCONFIG(0));   // set default volume
 
-        P065_easySerial->begin(9600);
-
-        Plugin_065_SetVol(PCONFIG(0));   // set default volume
-
-        success = true;
+          success = true;
+        }
         break;
       }
 
@@ -134,11 +136,9 @@ boolean Plugin_065(byte function, struct EventStruct *event, String& string)
 
         if (command == F("stop"))
         {
-          String log = F("MP3  : stop");
-
           Plugin_065_SendCmd(0x0E, 0);
 
-          addLog(LOG_LEVEL_INFO, log);
+          addLog(LOG_LEVEL_INFO, F("MP3  : stop"));
           success = true;
         }
 
