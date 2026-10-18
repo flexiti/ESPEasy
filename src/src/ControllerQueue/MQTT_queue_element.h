@@ -3,24 +3,60 @@
 
 #include "../../ESPEasy_common.h"
 
+#if FEATURE_MQTT
+
+# include "../ControllerQueue/Queue_element_base.h"
+# include "../DataStructs/UnitMessageCount.h"
+# include "../Globals/CPlugins.h"
+
 /*********************************************************************************************\
 * MQTT_queue_element for all MQTT base controllers
 \*********************************************************************************************/
-class MQTT_queue_element {
+class MQTT_queue_element : public Queue_element_base {
 public:
 
-  MQTT_queue_element();
+  MQTT_queue_element() = default;
 
-  MQTT_queue_element(int ctrl_idx,
-                     const String& topic, const String& payload, bool retained);
+  MQTT_queue_element(const MQTT_queue_element& other) = delete;
 
-  size_t getSize() const;
+  MQTT_queue_element(MQTT_queue_element&& other) = default;
 
-  int controller_idx = 0;
-  String _topic;
-  String _payload;
-  bool _retained = false;
+  explicit MQTT_queue_element(int           ctrl_idx,
+                              taskIndex_t   TaskIndex,
+                              const String& topic,
+                              const String& payload,
+                              bool          retained,
+                              bool          callbackTask);
+
+  explicit MQTT_queue_element(int         ctrl_idx,
+                              taskIndex_t TaskIndex,
+                              String   && topic,
+                              String   && payload,
+                              bool        retained,
+                              bool        callbackTask);
+
+  size_t                    getSize() const override;
+
+  bool                      isDuplicate(const Queue_element_base& other) const override;
+
+  const UnitMessageCount_t* getUnitMessageCount() const override {
+    return &UnitMessageCount;
+  }
+
+  UnitMessageCount_t* getUnitMessageCount() override {
+    return &UnitMessageCount;
+  }
+
+  void removeEmptyTopics();
+
+  String _topic{};
+  String _payload{};
+  UnitMessageCount_t UnitMessageCount{};
+  bool _retained = false; 
 };
 
+DEF_UP(MQTT_queue_element);
+
+#endif // if FEATURE_MQTT
 
 #endif // CONTROLLERQUEUE_MQTT_QUEUE_ELEMENT_H

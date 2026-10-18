@@ -1,26 +1,21 @@
 .. include:: ../Plugin/_plugin_substitutions_p02x.repl
 .. _P025_ADS1115_page:
 
-ADS1115
+ADS1x15
 =======
 
 |P025_typename|
 |P025_status|
 
 
-Introduction
-------------
-
-
-Specifications:
- * Analog signal (0-5V)
+.. include:: P025_page.rst
 
 
 Wiring
 ------
 
 
-.. code-block:: html
+.. code-block:: none
 
   ESP               S8
   GPIO (X)   <-->   TX
@@ -40,7 +35,7 @@ Setup
 Rules examples
 --------------
 
-.. code-block:: html
+.. code-block:: none
 
   //Code below...
 

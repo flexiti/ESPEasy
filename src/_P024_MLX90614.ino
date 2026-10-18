@@ -1,126 +1,138 @@
+#include "_Plugin_Helper.h"
 #ifdef USES_P024
-//#######################################################################################################
-//#################################### Plugin 024: MLX90614 IR temperature I2C 0x5A)  ###############################################
-//#######################################################################################################
+
+// #######################################################################################################
+// #################################### Plugin 024: MLX90614 IR temperature I2C 0x5A)  ###############################################
+// #######################################################################################################
+
+/** Changelog:
+ * 2026-09-02 tonhuisman: Disable function PLUGIN_I2C_HAS_ADDRESS as it uses the wrong value, and it can be configured for many addresses
+ * 2025-01-12 tonhuisman: Add support for MQTT AutoDiscovery
+ * 2024-08-17 tonhuisman: Show correct I2C address when non-default address is used (by setting a Port nr. 0..15)
+ * 2023-11-23 tonhuisman: Add Device flag for I2CMax100kHz as this sensor won't work at 400 kHz
+ * 2023-11-23 tonhuisman: Add Changelog
+ */
+
+# include "src/PluginStructs/P024_data_struct.h"
 
 // MyMessage *msgTemp024; // Mysensors
 
-#define PLUGIN_024
-#define PLUGIN_ID_024 24
-#define PLUGIN_NAME_024 "Environment - MLX90614"
-#define PLUGIN_VALUENAME1_024 "Temperature"
+# define PLUGIN_024
+# define PLUGIN_ID_024 24
+# define PLUGIN_NAME_024 "Environment - MLX90614"
+# define PLUGIN_VALUENAME1_024 "Temperature"
 
-boolean Plugin_024_init = false;
-
-uint16_t readRegister024(uint8_t i2cAddress, uint8_t reg) {
-  uint16_t ret;
-  Wire.beginTransmission(i2cAddress);
-  Wire.write(reg);
-  Wire.endTransmission(false);
-  Wire.requestFrom(i2cAddress, (uint8_t)3);
-  ret = Wire.read(); // receive DATA
-  ret |= Wire.read() << 8; // receive DATA
-  Wire.read();
-  return ret;
-}
-
-float readTemp024(uint8_t i2c_addr, uint8_t i2c_reg)
-{
-  float temp;
-  temp = readRegister024(i2c_addr, i2c_reg);
-  temp *= .02;
-  temp -= 273.15;
-  return temp;
-}
-
-boolean Plugin_024(byte function, struct EventStruct *event, String& string)
+boolean Plugin_024(uint8_t function, struct EventStruct *event, String& string)
 {
   boolean success = false;
-  // static byte portValue = 0;
+
+  // static uint8_t portValue = 0;
   switch (function)
   {
     case PLUGIN_DEVICE_ADD:
-      {
-        Device[++deviceCount].Number = PLUGIN_ID_024;
-        Device[deviceCount].Type = DEVICE_TYPE_I2C;
-        Device[deviceCount].VType = SENSOR_TYPE_SINGLE;
-        Device[deviceCount].Ports = 16;
-        Device[deviceCount].PullUpOption = false;
-        Device[deviceCount].InverseLogicOption = false;
-        Device[deviceCount].FormulaOption = true;
-        Device[deviceCount].SendDataOption = true;
-        Device[deviceCount].ValueCount = 1;
-        Device[deviceCount].TimerOption = true;
-        Device[deviceCount].GlobalSyncOption = true;
-        break;
-      }
+    {
+      auto& dev = Device[++deviceCount];
+      dev.Number         = PLUGIN_ID_024;
+      dev.Type           = DEVICE_TYPE_I2C;
+      dev.VType          = Sensor_VType::SENSOR_TYPE_SINGLE;
+      dev.Ports          = 16;
+      dev.FormulaOption  = true;
+      dev.SendDataOption = true;
+      dev.ValueCount     = 1;
+      dev.TimerOption    = true;
+      dev.PluginStats    = true;
+      dev.I2CMax100kHz   = true; // Max 100 kHz allowed/supported
+      break;
+    }
 
     case PLUGIN_GET_DEVICENAME:
-      {
-        string = F(PLUGIN_NAME_024);
-        break;
-      }
+    {
+      string = F(PLUGIN_NAME_024);
+      break;
+    }
 
     case PLUGIN_GET_DEVICEVALUENAMES:
-      {
-        strcpy_P(ExtraTaskSettings.TaskDeviceValueNames[0], PSTR(PLUGIN_VALUENAME1_024));
-        break;
-      }
+    {
+      strcpy_P(ExtraTaskSettings.TaskDeviceValueNames[0], PSTR(PLUGIN_VALUENAME1_024));
+      break;
+    }
+
+    # if FEATURE_MQTT_DISCOVER
+    case PLUGIN_GET_DISCOVERY_VTYPES:
+    {
+      success = getDiscoveryVType(event, Plugin_QueryVType_Temperature, 255, event->Par5);;
+      break;
+    }
+    # endif // if FEATURE_MQTT_DISCOVER
+
+    // case PLUGIN_I2C_HAS_ADDRESS:
+    // {
+    //   success = event->Par1 == (0x5a + CONFIG_PORT);
+    //   break;
+    // }
+
+    # if FEATURE_I2C_GET_ADDRESS
+    case PLUGIN_I2C_GET_ADDRESS:
+    {
+      event->Par1 = 0x5a + CONFIG_PORT;
+      success     = true;
+      break;
+    }
+    # endif // if FEATURE_I2C_GET_ADDRESS
 
     case PLUGIN_WEBFORM_LOAD:
-      {
-        #define MLX90614_OPTION 2
+    {
+      const __FlashStringHelper *options[] = {
+        F("IR object temperature"),
+        F("Ambient temperature")
+      };
+      const int optionValues[] = {
+        (0x07),
+        (0x06)
+      };
+      constexpr size_t optionCount = NR_ELEMENTS(optionValues);
+      const FormSelectorOptions selector(optionCount, options, optionValues);
+      selector.addFormSelector(F("Option"), F("option"),  PCONFIG(0));
 
-        byte choice = PCONFIG(0);
-        String options[MLX90614_OPTION];
-        int optionValues[MLX90614_OPTION];
-        optionValues[0] = (0x07);
-        options[0] = F("IR object temperature");
-        optionValues[1] = (0x06);
-        options[1] = F("Ambient temperature");
-        addFormSelector(F("Option"), F("p024_option"), MLX90614_OPTION, options, optionValues, choice);
-
-        success = true;
-        break;
-      }
+      success = true;
+      break;
+    }
 
     case PLUGIN_WEBFORM_SAVE:
-      {
-        PCONFIG(0) = getFormItemInt(F("p024_option"));
-        Plugin_024_init = false; // Force device setup next time
-        success = true;
-        break;
-      }
+    {
+      PCONFIG(0) = getFormItemInt(F("option"));
+      success    = true;
+      break;
+    }
 
     case PLUGIN_INIT:
-      {
-        Plugin_024_init = true;
-//        if (!msgTemp024) // Mysensors
-//          msgTemp024 = new MyMessage(event->BaseVarIndex, V_TEMP); //Mysensors
-//        present(event->BaseVarIndex, S_TEMP); //Mysensors
-//        serialPrint("Present MLX90614: "); //Mysensors
-//        serialPrintln(event->BaseVarIndex); //Mysensors
-        success = true;
-        break;
-      }
+    {
+      const uint8_t address = 0x5A + CONFIG_PORT;
+
+      success = initPluginTaskData(event->TaskIndex, new (std::nothrow) P024_data_struct(address));
+      break;
+    }
 
     case PLUGIN_READ:
-      {
-  //      noInterrupts();
-        // int value;
-        // value = 0;
-        byte unit = CONFIG_PORT;
-        uint8_t address = 0x5A + unit;
-        UserVar[event->BaseVarIndex] = (float) readTemp024(address, PCONFIG(0));
-        String log = F("MLX90614  : Temperature: ");
-        log += UserVar[event->BaseVarIndex];
-//        send(msgObjTemp024->set(UserVar[event->BaseVarIndex], 1)); // Mysensors
-        addLog(LOG_LEVEL_INFO,log);
+    {
+      P024_data_struct *P024_data =
+        static_cast<P024_data_struct *>(getPluginTaskData(event->TaskIndex));
+
+      if (nullptr != P024_data) {
+        UserVar.setFloat(event->TaskIndex, 0, P024_data->readTemperature(PCONFIG(0)));
+#ifndef BUILD_NO_DEBUG
+        if (loglevelActiveFor(LOG_LEVEL_INFO)) {
+          addLog(LOG_LEVEL_INFO, concat(F("MLX90614 : Temperature: "), formatUserVarNoCheck(event, 0)));
+        }
+#endif
+
+        //        send(msgObjTemp024->set(UserVar[event->BaseVarIndex], 1)); // Mysensors
         success = true;
-   //     interrupts();
-        break;
       }
+      break;
+    }
   }
   return success;
 }
+
 #endif // USES_P024

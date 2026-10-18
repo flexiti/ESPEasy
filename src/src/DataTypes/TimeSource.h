@@ -1,0 +1,25 @@
+#ifndef DATATYPES_TIMESOURCE_H
+#define DATATYPES_TIMESOURCE_H
+
+#include "../../ESPEasy_common.h"
+
+// Do not change order as values are stored in settings
+enum class ExtTimeSource_e {
+  None = 0,
+  DS1307,
+  DS3231,
+  PCF8523,
+  PCF8563,
+  DS3232,
+  #if FEATURE_EXT_RTC_PCF8583
+  PCF8583,
+  PCF8583a,
+  #endif // if FEATURE_EXT_RTC_PCF8583
+
+};
+
+
+const __FlashStringHelper* toString(ExtTimeSource_e timeSource);
+
+
+#endif // ifndef DATATYPES_TIMESOURCE_H

@@ -1,0 +1,66 @@
+#ifndef HELPERS_MSECTIMERHANDLERSTRUCT_H
+#define HELPERS_MSECTIMERHANDLERSTRUCT_H
+
+
+#include "../../ESPEasy_common.h"
+#include <forward_list>
+
+#include "../DataStructs/timer_id_couple.h"
+
+
+struct msecTimerHandlerStruct {
+  msecTimerHandlerStruct();
+
+  void setEcoMode(bool enabled);
+
+  void registerAt(uint32_t id,
+                  uint32_t timer);
+
+  void remove(uint32_t id);
+
+  // Check if timeout has been reached and also return its set timer.
+  // Return 0 if no item has reached timeout moment.
+  uint32_t getNextId(uint32_t& timer);
+
+  // Check if a give ID is scheduled and if so, return the set timer.
+  // N.B. the ID is the mixed ID.
+  bool   getTimerForId(uint32_t  id,
+                       uint32_t& timer) const;
+#ifndef BUILD_NO_DEBUG
+  String getQueueStats();
+#endif
+
+  void   updateIdleTimeStats();
+
+  float  getIdleTimePct() ;
+
+private:
+
+  void insert(const timer_id_couple& item);
+
+  void remove(const timer_id_couple& item);
+
+  void recordIdle();
+
+  void recordRunning();
+
+#ifndef BUILD_NO_DEBUG
+  // Statistics
+  uint32_t get_called{};
+  uint32_t get_called_ret_id{};
+  uint32_t max_queue_length{};
+#endif
+
+  // Compute idle system time
+  uint32_t last_exec_time_usec{};
+  uint32_t total_idle_time_usec{};
+  uint32_t last_log_start_time{};
+  float         idle_time_pct{};
+  bool          is_idle{};
+  bool          eco_mode{};
+
+  // The list of set timers
+  std::forward_list<timer_id_couple>_timer_ids;
+};
+
+#endif // HELPERS_MSECTIMERHANDLERSTRUCT_H

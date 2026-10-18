@@ -1,0 +1,148 @@
+#ifndef HELPERS_ESPEASY_TIME_CALC_H
+#define HELPERS_ESPEASY_TIME_CALC_H
+
+#include "../../ESPEasy_common.h"
+
+inline uint64_t getMicros64() {
+  #ifdef ESP8266
+  return micros64();
+  #endif
+  #ifdef ESP32
+  return esp_timer_get_time();
+  #endif
+}
+
+
+/********************************************************************************************\
+   Simple time computations.
+ \*********************************************************************************************/
+
+// Return the time difference as a signed value, taking into account the timers may overflow.
+// Returned timediff for millis() is between -24.9 days and +24.9 days.
+//          for micros() is between -35.79 and +35.79 minutes
+// Returned value is positive when "next" is after "prev"
+inline int32_t timeDiff(const uint32_t& prev, const uint32_t& next) {
+  return ((int32_t) (next - prev));
+}
+
+inline int64_t timeDiff64(const uint64_t& prev, const uint64_t& next) {
+  return ((int64_t) (next - prev));
+}
+
+// Compute the number of milliSeconds passed since timestamp given.
+// N.B. value can be negative if the timestamp has not yet been reached.
+inline int32_t timePassedSince(const uint32_t& timestamp) {
+  return timeDiff(timestamp, millis());
+}
+
+// Long term usec calculations
+inline int64_t usecPassedSince_volatile(ESPEASY_VOLATILE(uint64_t)& timestamp) {
+  const uint64_t timestamp_tmp(timestamp);
+  return timeDiff64(timestamp_tmp, getMicros64());
+}
+
+inline int64_t usecPassedSince(const uint64_t& timestamp) {
+  return timeDiff64(timestamp, getMicros64());
+}
+
+/*
+inline int64_t usecPassedSince(uint64_t& timestamp) { //-V669
+  return timeDiff64(timestamp, getMicros64());
+}
+  */
+
+// Fast short-term usec calculations
+
+inline int32_t usecPassedSince_fast_volatile(ESPEASY_VOLATILE(uint32_t)& timestamp) {
+  const uint32_t timestamp_tmp(timestamp);
+  return timeDiff(timestamp_tmp, micros());
+}
+
+inline int32_t usecPassedSince_fast(const uint32_t& timestamp) {
+  return timeDiff(timestamp, micros());
+}
+/*
+inline int32_t usecPassedSince_fast(uint32_t& timestamp) { //-V669
+  return timeDiff(timestamp, micros());
+}
+  */
+
+
+// Check if a certain timeout has been reached.
+inline bool timeOutReached(const uint32_t& timer) {
+  return timePassedSince(timer) >= 0;
+}
+
+inline bool usecTimeOutReached(const uint64_t& timer) {
+  return usecPassedSince(timer) >= 0;
+}
+
+uint32_t unix_time_frac_to_millis(uint32_t unix_time_frac);
+uint32_t unix_time_frac_to_micros(uint32_t unix_time_frac);
+uint32_t millis_to_unix_time_frac(uint32_t millis);
+uint32_t micros_to_unix_time_frac(uint32_t micros);
+
+uint32_t micros_to_sec_time_frac(int64_t micros, uint32_t& unix_time_frac);
+uint64_t sec_time_frac_to_Micros(uint32_t seconds, uint32_t time_frac);
+
+uint32_t micros_to_sec_usec(int64_t micros, uint32_t& usec);
+
+uint64_t sec_time_frac_to_uptime_offset_usec(const uint32_t& seconds,
+                                   uint32_t        time_frac = 0);
+
+/********************************************************************************************\
+   Unix Time computations
+ \*********************************************************************************************/
+bool isLeapYear(int year);
+
+// Get number of days in a month.
+// Month starts at 0 for January.
+uint8_t getMonthDays(int year, uint8_t month);
+uint8_t getMonthDays(const struct tm& tm);
+
+uint32_t makeTime(const struct tm& tm);
+
+void breakTime(uint32_t timeInput, struct tm& tm);
+
+/********************************************************************************************\
+   Unix Time formatting
+ \*********************************************************************************************/
+
+// Format given Date separated by the given delimiter
+// date format example with '-' delimiter: 2016-12-31 (YYYY-MM-DD)
+String formatDateString(const struct tm& ts, char delimiter);
+
+// returns the given Time formatted like this 23:59:59 (HH:MM:SS)
+String formatTimeString(const struct tm& ts);
+
+// returns the given Time separated by the given delimiter
+// time format example with ':' delimiter: 23:59:59 (HH:MM:SS)
+String formatTimeString(const struct tm& ts, char delimiter, bool am_pm, bool show_seconds, char hour_prefix = '\0');
+
+// returns the given Date and Time separated by the given delimiter
+// if called like this: getDateTimeString('\0', '\0', '\0');
+// it will give back this: 20161231235959  (YYYYMMDDHHMMSS)
+String formatDateTimeString(const struct tm& ts, char dateDelimiter = '-', char timeDelimiter = ':',  char dateTimeDelimiter = ' ', bool am_pm = false);
+
+
+/********************************************************************************************\
+   Time computations for rules.
+ \*********************************************************************************************/
+
+// format 0000WWWWAAAABBBBCCCCDDDD
+// WWWW=weekday, AAAA=hours tens digit, BBBB=hours, CCCC=minutes tens digit DDDD=minutes
+
+// Convert a 32 bit integer into a string like "Sun,12:30"
+String timeLong2String(uint32_t lngTime);
+
+// Convert a string like "Sun,12:30" into a 32 bit integer
+uint32_t string2TimeLong(const String& str);
+
+
+/********************************************************************************************\
+   Match clock event
+ \*********************************************************************************************/
+bool matchClockEvent(uint32_t clockEvent, uint32_t clockSet);
+
+
+#endif // HELPERS_ESPEASY_TIME_CALC_H

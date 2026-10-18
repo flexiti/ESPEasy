@@ -34,19 +34,19 @@
 class SensorSerial : public ESPeasySerial
 {
 public:
-  SensorSerial(int receivePin, int transmitPin = -1, bool inverse_logic = false, unsigned int buffSize = 64);
+  SensorSerial(ESPEasySerialPort port, int receivePin, int transmitPin = -1, bool inverse_logic = false, unsigned int buffSize = 64);
 
   void begin(long speed);
 
-  int peek();
+  int peek() override;
 
-  virtual size_t write(uint8_t byte);
+  virtual size_t write(uint8_t byte) override;
 
-  virtual int read();
+  virtual int read() override;
 
-  virtual int available();
+  virtual int available() override;
 
-  virtual void flush();
+  virtual void flush() override;
 
 };
 

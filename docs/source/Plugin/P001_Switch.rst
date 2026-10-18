@@ -24,7 +24,7 @@ Specifications:
 Wiring
 ------
 
-.. code-block:: html
+.. code-block:: none
 
   ESP               Switch/button
   GPIO (X)   <-->   Signal
@@ -110,11 +110,8 @@ Advanced event management
 
 * **Use safe button (slower)**:
 
-Data acquisition
-^^^^^^^^^^^^^^^^
+.. include:: DataAcquisition.repl
 
-* **Send to controller** 1..3: Check which controller (if any) you want to publish to. All or no controller can be used.
-* **Interval**: How often should the task publish its value (optional for switch plugins).
 
 Indicators/values (recommended settings)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -128,17 +125,21 @@ Indicators/values (recommended settings)
 Rules examples
 --------------
 
-.. code-block:: html
+.. code-block:: none
 
     on Switch#State do
-     if [Switch#State]=3
+     if %eventvalue1%=3
       //double click triggered!
       GPIO,12,0
      else
-      GPIO,2,[Switch#State]
+      GPIO,2,%eventvalue1%
       GPIO,12,1
      endif
     endon
+
+.. note::
+  Events may be handled from an event queue, so by the time the event is being handled, the state of the switch can already be different.
+  Therefore it is best to use the state of the switch at the time the event was generated,using ``%eventvalue1%`` .
 
 .. Commands available
 .. ~~~~~~~~~~~~~~~~~~

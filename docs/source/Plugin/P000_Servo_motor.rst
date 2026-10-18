@@ -29,7 +29,7 @@ Wiring
 ------
 
 
-.. code-block:: html
+.. code-block:: none
 
   ESP               Servo
   GPIO (X)   <-->   S (signal)
@@ -48,19 +48,24 @@ find more information on how to do this.
 Rules examples
 --------------
 
-.. code-block:: html
+.. code-block:: none
 
   On Switch#State Do
-   if [Switch#State]=1
-    Servo,12,1,-45
-    Servo,14,2,45
+   if %eventvalue1%=1
+    Servo,1,12,-45
+    Servo,2,14,45
    else
-    Servo,12,1,0
-    Servo,14,2,0
+    Servo,1,12,0
+    Servo,2,14,0
    endif
   EndOn
 
 This rule will tilt the servos 45° when the button is pressed, and it'll go back to 0 once released.
+
+.. note::
+  Events may be handled from an event queue, so by the time the event is being handled, the state of the switch can already be different.
+  Therefore it is best to use the state of the switch at the time the event was generated,using ``%eventvalue1%`` .
+
 
 Indicators (recommended settings)
 ---------------------------------

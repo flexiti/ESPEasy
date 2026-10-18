@@ -1,35 +1,17 @@
 #ifndef COMMAND_SYSTEM_H
 #define COMMAND_SYSTEM_H
 
+#include "../../ESPEasy_common.h"
 
-String Command_System_NoSleep(struct EventStruct *event, const char* Line)
-{
-	if (event->Par1 > 0)
-		Settings.deepSleep = event->Par1; // set deep Sleep awake time
-	else Settings.deepSleep = 0;
-	return return_command_success();
-}
+const __FlashStringHelper * Command_System_NoSleep(struct EventStruct *event, const char* Line);
+const __FlashStringHelper * Command_System_deepSleep(struct EventStruct *event, const char* Line);
+const __FlashStringHelper * Command_System_Reboot(struct EventStruct *event, const char* Line);
 
-String Command_System_deepSleep(struct EventStruct *event, const char* Line)
-{
-	if (event->Par1 > 0)
-		deepSleepStart(event->Par1); // call the second part of the function to avoid check and enable one-shot operation
-	return return_command_success();
-}
-
-String Command_System_Reboot(struct EventStruct *event, const char* Line)
-{
-	pinMode(0, INPUT);
-	pinMode(2, INPUT);
-	pinMode(15, INPUT);
-	reboot();
-	return return_command_success();
-}
-
-String Command_System_Restart(struct EventStruct *event, const char* Line)
-{
-	ESP.restart();
-	return return_command_success();
-}
+#ifdef ESP8266
+// Erase the RF calibration partition (4k)
+const __FlashStringHelper * Command_System_Erase_RFcal(struct EventStruct *event, const char* Line);
+// Erase the SDK WiFI partition (12k)
+const __FlashStringHelper * Command_System_Erase_SDK_WiFiconfig(struct EventStruct *event, const char* Line);
+#endif
 
 #endif // COMMAND_SYSTEM_H

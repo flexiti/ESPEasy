@@ -1,47 +1,42 @@
 #ifndef COMMAND_HTTP_H
 #define COMMAND_HTTP_H
 
+#include "../../ESPEasy_common.h"
 
-String Command_HTTP_SendToHTTP(struct EventStruct *event, const char* Line)
-{
-	if (WiFiConnected()) {
-		String strLine = Line;
-		String host = parseString(strLine, 2);
-		String port = parseString(strLine, 3);
-		if (loglevelActiveFor(LOG_LEVEL_DEBUG)) {
-			String log = F("SendToHTTP: Host: ");
-			log += host;
-			log += F(" port: ");
-			log += port;
-			addLog(LOG_LEVEL_DEBUG, log);
-		}
-		if (!isInt(port)) return return_command_failed();
-		String path = parseStringToEndKeepCase(strLine, 4);
-#ifndef BUILD_NO_DEBUG
-		if (loglevelActiveFor(LOG_LEVEL_DEBUG)) {
-			String log = F("SendToHTTP: Path: ");
-			log += path;
-			addLog(LOG_LEVEL_DEBUG, log);
-		}
-#endif
-		WiFiClient client;
-		client.setTimeout(CONTROLLER_CLIENTTIMEOUT_DFLT);
-		const int port_int = port.toInt();
-		const bool connected = connectClient(client, host.c_str(), port_int);
-		if (connected) {
-			String hostportString = host;
-			if (port_int != 0 && port_int != 80) {
-				hostportString += ':';
-				hostportString += port_int;
-			}
-			String request = do_create_http_request(hostportString, F("GET"), path);
-#ifndef BUILD_NO_DEBUG
-			addLog(LOG_LEVEL_DEBUG, request);
-#endif
-			send_via_http(F("Command_HTTP_SendToHTTP"), client, request, false);
-		}
-	}
-	return return_command_success();
-}
+#if FEATURE_SEND_TO_HTTP || FEATURE_POST_TO_HTTP || FEATURE_PUT_TO_HTTP
+const __FlashStringHelper* httpEmitToHTTP(struct EventStruct        *event,
+                                          const __FlashStringHelper *logIdentifier,
+                                          const __FlashStringHelper *HttpMethod,
+                                          const char                *Line,
+                                          const int                  timeout,
+                                          const bool                 waitForAck,
+                                          const bool                 useHeader,
+                                          const bool                 useBody,
+                                          const bool                 useHttps);
+#endif // if FEATURE_SEND_TO_HTTP || FEATURE_POST_TO_HTTP || FEATURE_PUT_TO_HTTP
+#if FEATURE_SEND_TO_HTTP
+const __FlashStringHelper* Command_HTTP_SendToHTTP(struct EventStruct *event,
+                                                   const char         *Line);
+#if FEATURE_HTTP_TLS
+const __FlashStringHelper* Command_HTTP_SendToHTTPS(struct EventStruct *event,
+                                                    const char         *Line);
+#endif // if FEATURE_HTTP_TLS
+#endif // FEATURE_SEND_TO_HTTP
+#if FEATURE_POST_TO_HTTP
+const __FlashStringHelper* Command_HTTP_PostToHTTP(struct EventStruct *event,
+                                                   const char         *Line);
+#if FEATURE_HTTP_TLS
+const __FlashStringHelper* Command_HTTP_PostToHTTPS(struct EventStruct *event,
+                                                    const char         *Line);
+#endif // if FEATURE_HTTP_TLS
+#endif // if FEATURE_POST_TO_HTTP
+#if FEATURE_PUT_TO_HTTP
+const __FlashStringHelper* Command_HTTP_PutToHTTP(struct EventStruct *event,
+                                                  const char         *Line);
+#if FEATURE_HTTP_TLS
+const __FlashStringHelper* Command_HTTP_PutToHTTPS(struct EventStruct *event,
+                                                   const char         *Line);
+#endif // if FEATURE_HTTP_TLS
+#endif // if FEATURE_PUT_TO_HTTP
 
 #endif // COMMAND_HTTP_H

@@ -1,10 +1,17 @@
+#include "_Plugin_Helper.h"
 #ifdef USES_P058
-//#######################################################################################################
-//#################################### Plugin 058: HT16K33 KeyPad #######################################
-//#######################################################################################################
+
+// #######################################################################################################
+// #################################### Plugin 058: HT16K33 KeyPad #######################################
+// #######################################################################################################
 
 // ESPEasy Plugin to scan a 13x3 key pad matrix chip HT16K33
 // written by Jochen Krapf (jk@nerd2nerd.org)
+
+/** Changelog:
+ * 2025-06-14 tonhuisman: Add support for Custom Value Type per task value
+ * 2025-01-12 tonhuisman: Add support for MQTT AutoDiscovery (not supported for Keypad scancode)
+ */
 
 // Connecting KeyPad to HT16K33-board:
 // Column 1 = C1 (over diode)
@@ -27,119 +34,134 @@
 // Note: The HT16K33-LED-plugin and the HT16K33-key-plugin can be used at the same time with the same I2C address
 
 
-
-#define PLUGIN_058
-#define PLUGIN_ID_058         58
-#define PLUGIN_NAME_058       "Keypad - HT16K33 [TESTING]"
-#define PLUGIN_VALUENAME1_058 "ScanCode"
-
-#include <HT16K33.h>
-
-CHT16K33* Plugin_058_K = NULL;
+# define PLUGIN_058
+# define PLUGIN_ID_058         58
+# define PLUGIN_NAME_058       "Keypad - HT16K33"
+# define PLUGIN_VALUENAME1_058 "ScanCode"
 
 
-boolean Plugin_058(byte function, struct EventStruct *event, String& string)
+# include "src/PluginStructs/P058_data_struct.h"
+
+
+boolean Plugin_058(uint8_t function, struct EventStruct *event, String& string)
 {
   boolean success = false;
 
   switch (function)
   {
     case PLUGIN_DEVICE_ADD:
-      {
-        Device[++deviceCount].Number = PLUGIN_ID_058;
-        Device[deviceCount].Type = DEVICE_TYPE_I2C;
-        Device[deviceCount].Ports = 0;
-        Device[deviceCount].VType = SENSOR_TYPE_SWITCH;
-        Device[deviceCount].PullUpOption = false;
-        Device[deviceCount].InverseLogicOption = false;
-        Device[deviceCount].FormulaOption = false;
-        Device[deviceCount].ValueCount = 1;
-        Device[deviceCount].SendDataOption = true;
-        Device[deviceCount].TimerOption = true;
-        Device[deviceCount].TimerOptional = true;
-        Device[deviceCount].GlobalSyncOption = true;
-        break;
-      }
+    {
+      auto& dev = Device[++deviceCount];
+      dev.Number         = PLUGIN_ID_058;
+      dev.Type           = DEVICE_TYPE_I2C;
+      dev.VType          = Sensor_VType::SENSOR_TYPE_SWITCH;
+      dev.ValueCount     = 1;
+      dev.SendDataOption = true;
+      dev.TimerOption    = true;
+      dev.TimerOptional  = true;
+      dev.CustomVTypeVar = true;
+      break;
+    }
 
     case PLUGIN_GET_DEVICENAME:
-      {
-        string = F(PLUGIN_NAME_058);
-        break;
-      }
+    {
+      string = F(PLUGIN_NAME_058);
+      break;
+    }
 
     case PLUGIN_GET_DEVICEVALUENAMES:
-      {
-        strcpy_P(ExtraTaskSettings.TaskDeviceValueNames[0], PSTR(PLUGIN_VALUENAME1_058));
-        break;
+    {
+      strcpy_P(ExtraTaskSettings.TaskDeviceValueNames[0], PSTR(PLUGIN_VALUENAME1_058));
+      break;
+    }
+
+    # if FEATURE_MQTT_DISCOVER || FEATURE_CUSTOM_TASKVAR_VTYPE
+    case PLUGIN_GET_DISCOVERY_VTYPES:
+    {
+      #  if FEATURE_CUSTOM_TASKVAR_VTYPE
+
+      for (uint8_t i = 0; i < event->Par5; ++i) {
+        event->ParN[i] = ExtraTaskSettings.getTaskVarCustomVType(i);  // Custom/User selection
       }
+      #  else // if FEATURE_CUSTOM_TASKVAR_VTYPE
+      event->Par1 = static_cast<int>(Sensor_VType::SENSOR_TYPE_NONE); // Not yet supported
+      #  endif // if FEATURE_CUSTOM_TASKVAR_VTYPE
+      success = true;
+      break;
+    }
+    # endif // if FEATURE_MQTT_DISCOVER || FEATURE_CUSTOM_TASKVAR_VTYPE
+
+    case PLUGIN_I2C_HAS_ADDRESS:
+    case PLUGIN_WEBFORM_SHOW_I2C_PARAMS:
+    {
+      const uint8_t i2cAddressValues[] = { 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77 };
+
+      if (function == PLUGIN_WEBFORM_SHOW_I2C_PARAMS) {
+        addFormSelectorI2C(F("i2c_addr"), 8, i2cAddressValues, PCONFIG(0));
+      } else {
+        success = intArrayContains(8, i2cAddressValues, event->Par1);
+      }
+      break;
+    }
+
+    # if FEATURE_I2C_GET_ADDRESS
+    case PLUGIN_I2C_GET_ADDRESS:
+    {
+      event->Par1 = PCONFIG(0);
+      success     = true;
+      break;
+    }
+    # endif // if FEATURE_I2C_GET_ADDRESS
 
     case PLUGIN_WEBFORM_LOAD:
-      {
-        byte addr = PCONFIG(0);
-
-        int optionValues[8] = { 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77 };
-        addFormSelectorI2C(F("i2c_addr"), 8, optionValues, addr);
-
-        success = true;
-        break;
-      }
+    {
+      success = true;
+      break;
+    }
 
     case PLUGIN_WEBFORM_SAVE:
-      {
-        PCONFIG(0) = getFormItemInt(F("i2c_addr"));
+    {
+      PCONFIG(0) = getFormItemInt(F("i2c_addr"));
 
-        success = true;
-        break;
-      }
+      success = true;
+      break;
+    }
 
     case PLUGIN_INIT:
-      {
-        byte addr = PCONFIG(0);
-
-        if (!Plugin_058_K)
-          Plugin_058_K = new CHT16K33;
-
-        Plugin_058_K->Init(addr);
-
-        success = true;
-        break;
-      }
+    {
+      success = initPluginTaskData(event->TaskIndex, new (std::nothrow) P058_data_struct(PCONFIG(0)));
+      break;
+    }
 
     case PLUGIN_TEN_PER_SECOND:
-      {
-        if (Plugin_058_K)
+    {
+      P058_data_struct *P058_data =
+        static_cast<P058_data_struct *>(getPluginTaskData(event->TaskIndex));
+
+      if (nullptr != P058_data) {
+        uint8_t key;
+
+        if (P058_data->readKey(key))
         {
-          static uint8_t keyLast = 0;
+          UserVar.setFloat(event->TaskIndex, 0, key);
+          event->sensorType = Sensor_VType::SENSOR_TYPE_SWITCH;
 
-          uint8_t key = Plugin_058_K->ReadKeys();
-
-          if (keyLast != key)
-          {
-            keyLast = key;
-            UserVar[event->BaseVarIndex] = (float)key;
-            event->sensorType = SENSOR_TYPE_SWITCH;
-
-            String log = F("Mkey : key=0x");
-            log += String(key, 16);
-            addLog(LOG_LEVEL_INFO, log);
-
-            sendData(event);
+          if (loglevelActiveFor(LOG_LEVEL_INFO)) {
+            addLog(LOG_LEVEL_INFO, strformat(F("Mkey : key=0x%x"), key));
           }
 
+          sendData(event);
         }
-        success = true;
-        break;
       }
+      success = true;
+      break;
+    }
 
     case PLUGIN_READ:
-      {
-        if (Plugin_058_K)
-        {
-        }
-        success = true;
-        break;
-      }
-
+    {
+      success = true;
+      break;
+    }
   }
   return success;
 }

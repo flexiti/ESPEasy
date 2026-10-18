@@ -8,6 +8,7 @@ YFS401
 |P003_status|
 
 .. image:: P003_YFS401_1.jpg
+    :scale: 25 %
 
 Introduction
 ------------
@@ -27,7 +28,7 @@ Specifications:
 Wiring
 ------
 
-.. code-block:: html
+.. code-block:: none
 
   ESP               YFS401
   GPIO (14)  <-->   Signal (yellow)
@@ -40,9 +41,7 @@ Wiring
 Setup
 -----
 
-.. image:: P003_Setup_YFS401_1.png
-
-.. danger:: Only task number 1..4 is currently supported for the pulse plugin!
+.. FIXME: wrong image .. image:: P003_Setup_YFS401_1.png
 
 Task settings
 ~~~~~~~~~~~~~
@@ -64,22 +63,24 @@ Sensor
 * **GPIO <-- Pulse**: Pulse input is generally set to **GPIO 14 (D5)**.
 * **Debounce time**: Debounce time is generally set to **100**.
 * **Counter type**: In this example the type is set to **Delta/Total/Time**.
-* **Mode type**: Pulse input is generally set to **Falling**
+* **Mode type**: Pulse input is generally set to **Falling** or **PULSE low**
 
-  ``LOW`` = count when signal go from not low to low (0.8+V to 0.8-V)
+  ``Change`` = count on signal being changed, low to high (0.8-V to 2.4+V) or high to low (2.4+V to 0.8-V)
 
-  ``CHANGE`` = count on signal being changed, low to high (0.8-V to 2.4+V) or high to low (2.4+V to 0.8-V)
+  ``Rising`` = count if signal is rising, from low to not low (0.8-V to 0.8+V)
 
-  ``RISING`` = count if signal is rising, from low to not low (0.8-V to 0.8+V)
+  ``Falling`` = count if signal is falling, from high to not high (2.4+V to 2.4-V)
 
-  ``FALLING`` = count if signal is falling, from high to not high (2.4+V to 2.4-V)
+  ``PULSE Low`` = count if a stable low signal ended followed by a stable high signal
+  
+  ``PULSE High`` = count if a stable high signal ended followed by a stable low signal.
 
-.. warning:: GPIO 16 (D0) is not compatible with pulse counters.
+  ``PULSE Change`` = count if the stable signal changes from high to low or from low to high
+  
+.. warning:: ESP8266 GPIO 16 (D0) is not compatible with pulse counters.
 
-Data acquisition
-^^^^^^^^^^^^^^^^
+.. include:: DataAcquisition.repl
 
-* **Send to controller** 1..3: Check which controller (if any) you want to publish to. All or no controller can be used.
 * **Interval**: How often should the task publish its value (5..15 seconds is normal).
 
 
@@ -104,7 +105,7 @@ Indicators (recommended settings)
 Rules examples
 --------------
 
-.. code-block:: html
+.. code-block:: none
 
    On WaterMeter#mL Do
     If [WaterMeter#mL]=0
@@ -114,11 +115,6 @@ Rules examples
     EndIf
   EndOn
 
-
- .. Commands available
- .. ~~~~~~~~~~~~~~~~~~
-
- .. .. include:: P003_commands.repl
 
 Where to buy
 ------------
@@ -138,9 +134,14 @@ More pictures
 -------------
 
 .. image:: P003_YFS401_2.jpg
+    :scale: 25 %
 
 .. image:: P003_YFS401_3.jpg
+    :scale: 50 %
 
 .. image:: P003_YFS401_4.jpg
+    :scale: 25 %
 
 .. image:: P003_YFS401_5.jpg
+    :scale: 50 %
+

@@ -23,7 +23,7 @@ import os
 TOTAL_IRAM = 32786;
 TOTAL_DRAM = 81920;
 
-env="memanalyze_ESP8266"
+env="spec_memanalyze_ESP8266"
 
 sections = OrderedDict([
     ("data", "Initialized Data (RAM)"),
@@ -122,7 +122,7 @@ try:
         plugins.append(buildflag)
 
     plugins.append('MQTT_ONLY')
-    plugins.append('USE_SETTINGS_ARCHIVE')
+    plugins.append('FEATURE_SETTINGS_ARCHIVE=1')
     plugins.append('WEBSERVER_RULES_DEBUG=1')
     plugins.append('WEBSERVER_TIMINGSTATS')
     plugins.append('WEBSERVER_NEW_UI')

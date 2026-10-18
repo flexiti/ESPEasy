@@ -141,7 +141,8 @@ void Adafruit_TSL2591::setGain(tsl2591Gain_t gain)
 
   enable();
   _gain = gain;
-  write8(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, _integration | _gain);
+  const uint8_t value = static_cast<uint8_t>(_integration) | static_cast<uint8_t>(_gain);
+  write8(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, value);
   disable();
 }
 
@@ -162,7 +163,8 @@ void Adafruit_TSL2591::setTiming(tsl2591IntegrationTime_t integration)
 
   enable();
   _integration = integration;
-  write8(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, _integration | _gain);
+  const uint8_t value = static_cast<uint8_t>(_integration) | static_cast<uint8_t>(_gain);
+  write8(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL, value);
   disable();
 }
 
@@ -175,7 +177,7 @@ float Adafruit_TSL2591::calculateLuxf(uint16_t ch0, uint16_t ch1)
 {
   float    atime, again;
   float    cpl, lux1, lux2, lux;
-  uint32_t chan0, chan1;
+  //uint32_t chan0, chan1;
 
   // Check for overflow conditions first
   if ((ch0 == 0xFFFF) | (ch1 == 0xFFFF))
@@ -248,6 +250,29 @@ float Adafruit_TSL2591::calculateLuxf(uint16_t ch0, uint16_t ch1)
 uint32_t Adafruit_TSL2591::calculateLux(uint16_t ch0, uint16_t ch1)
 {
   return (uint32_t) calculateLuxf(ch0, ch1);
+}
+
+uint32_t Adafruit_TSL2591::getFullLuminosity (bool& finished)
+{
+  const uint8_t status = read8(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_STATUS);
+
+  // ALS Valid. Indicates that the ADC channels have completed an
+  // integration cycle since the AEN bit was asserted.
+  finished = status & 0x01;
+  if (!finished) {
+    return 0;
+  }
+  
+  uint32_t x;
+  uint16_t y = 0;
+  y |= read16(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN0_LOW);
+  x = read16(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN1_LOW);
+  x <<= 16;
+  x |= y;
+
+  disable();
+
+  return x;
 }
 
 uint32_t Adafruit_TSL2591::getFullLuminosity (void)

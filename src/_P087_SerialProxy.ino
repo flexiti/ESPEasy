@@ -1,3 +1,4 @@
+#include "_Plugin_Helper.h"
 #ifdef USES_P087
 
 // #######################################################################################################
@@ -8,156 +9,35 @@
 // Allows to redirect data to a controller
 //
 
-#include <ESPeasySerial.h>
-
-#define PLUGIN_087
-#define PLUGIN_ID_087           87
-#define PLUGIN_NAME_087         "Communication - Serial Proxy [TESTING]"
-
-
-#define P087_BAUDRATE           PCONFIG_LONG(0)
-#define P087_BAUDRATE_LABEL     PCONFIG_LABEL(0)
-
-#define P087_QUERY_VALUE        0 // Temp placement holder until we know what selectors are needed.
-#define P087_NR_OUTPUT_OPTIONS  1
-
-#define P087_NR_OUTPUT_VALUES   1
-#define P087_QUERY1_CONFIG_POS  3
-
-#define P087_DEFAULT_BAUDRATE   38400
-
-#define P87_Nlines              2
-#define P87_Nchars              64
-
-#define P087_INITSTRING         0
-#define P087_EXITSTRING         1
+/**
+ * Changelog:
+ * 2025-12-22 tonhuisman: Add support for receiving binary data, fixed length receive and sending events with hex data
+ *                        Moved most #define variables to P087_data_struct.h
+ * 2025-01-12 tonhuisman: Add support for MQTT AutoDiscovery (not supported for Serial Proxy)
+ * 2024-02-27 tonhuisman: Always process the regular expression like 'Global Match' to enable retrieving the available values
+ * 2024-02-26 tonhuisman: Apply log-string and other code optimizations
+ * 2024-02-25 tonhuisman: Add command serialproxy_test,<testdata> to test as if serial data was received
+ *                        Add Get Config Value support for retrieving the last regex-parsed data:
+ *                        - By group: [<taskname>#group,<groupnr>] (groupnr is 0-base!)
+ *                        - By name: [<taskname>#next,<data>] if the <data> is found, the next group-data is returned
+ * 2023-03-25 tonhuisman: Change serialproxy_writemix to handle 0x00 also, by implementing parseHexTextData()
+ * 2023-03-22 tonhuisman: Add command serialproxy_writemix to handle mixed hex characters and text to send
+ *                        using parseHexTextString()
+ *                        Format source using Uncrustify
+ * 2022-07-08 tonhuisman: Allow baudrate lowest value to 300 (from 2400)
+ *                        Don't trim off pre/post white-space from string to send
+ * 2022-07-07 tonhuisman: Add selection for serial protocol configuration (databits, parity, nr. of stopbits)
+ * 2022-07 First recorded changelog
+ **/
 
 
-struct P087_data_struct : public PluginTaskData_base {
-  P087_data_struct() :  P087_easySerial(nullptr) {}
+# include "src/PluginStructs/P087_data_struct.h"
 
-  ~P087_data_struct() {
-    reset();
-  }
+# include <Regexp.h>
 
-  void reset() {
-    if (P087_easySerial != nullptr) {
-      delete P087_easySerial;
-      P087_easySerial = nullptr;
-    }
-  }
-
-  bool init(const int16_t serial_rx, const int16_t serial_tx, unsigned long baudrate) {
-    if ((serial_rx < 0) && (serial_tx < 0)) {
-      return false;
-    }
-    reset();
-    P087_easySerial = new ESPeasySerial(serial_rx, serial_tx);
-
-    if (isInitialized()) {
-      P087_easySerial->begin(baudrate);
-      return true;
-    }
-    return false;
-  }
-
-  bool isInitialized() const {
-    return P087_easySerial != nullptr;
-  }
-
-  void sendString(const String& data) {
-    if (isInitialized()) {
-      if (data.length() > 0) {
-        P087_easySerial->write(data.c_str());
-
-        if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-          String log = F("Proxy: Sending: ");
-          log += data;
-          addLog(LOG_LEVEL_INFO, log);
-        }
-      }
-    }
-  }
-
-  bool loop() {
-    if (!isInitialized()) {
-      return false;
-    }
-    bool fullSentenceReceived = false;
-
-    if (P087_easySerial != nullptr) {
-      while (P087_easySerial->available() > 0 && !fullSentenceReceived) {
-        // Look for end marker
-        char c = P087_easySerial->read();
-
-        switch (c) {
-          case 13:
-          {
-            const size_t length = sentence_part.length();
-            bool valid          = length > 0;
-
-            for (size_t i = 0; i < length && valid; ++i) {
-              if ((sentence_part[i] > 127) || (sentence_part[i] < 32)) {
-                sentence_part = "";
-                ++sentences_received_error;
-                valid = false;
-              }
-            }
-
-            if (valid) {
-              fullSentenceReceived = true;
-            }
-            break;
-          }
-          case 10:
-
-            // Ignore LF
-            break;
-          default:
-            sentence_part += c;
-            break;
-        }
-
-        if (max_length_reached()) { fullSentenceReceived = true; }
-      }
-    }
-
-    if (fullSentenceReceived) {
-      ++sentences_received;
-      length_last_received = sentence_part.length();
-    }
-    return fullSentenceReceived;
-  }
-
-  void getSentence(String& string) {
-    string        = sentence_part;
-    sentence_part = "";
-  }
-
-  void getSentencesReceived(uint32_t& succes, uint32_t& error, uint32_t& length_last) const {
-    succes      = sentences_received;
-    error       = sentences_received_error;
-    length_last = length_last_received;
-  }
-
-  void setMaxLength(uint16_t maxlenght) {
-    max_length = maxlenght;
-  }
-
-private:
-
-  bool max_length_reached() const {
-    if (max_length == 0) { return false; }
-    return sentence_part.length() >= max_length;
-  }
-
-  ESPeasySerial *P087_easySerial = nullptr;
-  String         sentence_part;
-  uint16_t       max_length               = 550;
-  uint32_t       sentences_received       = 0;
-  uint32_t       sentences_received_error = 0;
-  uint32_t       length_last_received     = 0;
-};
+# define PLUGIN_087
+# define PLUGIN_ID_087           87
+# define PLUGIN_NAME_087         "Communication - Serial Proxy"
 
 
 // Plugin settings:
@@ -178,22 +58,21 @@ private:
 // Timeout between sentences.
 
 
-boolean Plugin_087(byte function, struct EventStruct *event, String& string) {
+boolean Plugin_087(uint8_t function, struct EventStruct *event, String& string) {
   boolean success = false;
 
   switch (function) {
     case PLUGIN_DEVICE_ADD: {
-      Device[++deviceCount].Number           = PLUGIN_ID_087;
-      Device[deviceCount].Type               = DEVICE_TYPE_DUAL;
-      Device[deviceCount].VType              = SENSOR_TYPE_STRING;
-      Device[deviceCount].Ports              = 0;
-      Device[deviceCount].PullUpOption       = false;
-      Device[deviceCount].InverseLogicOption = false;
-      Device[deviceCount].FormulaOption      = false;
-      Device[deviceCount].ValueCount         = 1;
-      Device[deviceCount].SendDataOption     = true;
-      Device[deviceCount].TimerOption        = true;
-      Device[deviceCount].GlobalSyncOption   = false;
+      auto& dev = Device[++deviceCount];
+      dev.Number         = PLUGIN_ID_087;
+      dev.Type           = DEVICE_TYPE_SERIAL;
+      dev.VType          = Sensor_VType::SENSOR_TYPE_STRING;
+      dev.ValueCount     = 1;
+      dev.SendDataOption = true;
+      dev.TimerOption    = true;
+
+      // FIXME TD-er: Not sure if access to any existing task data is needed when saving
+      dev.ExitTaskBeforeSave = false;
       break;
     }
 
@@ -203,20 +82,26 @@ boolean Plugin_087(byte function, struct EventStruct *event, String& string) {
     }
 
     case PLUGIN_GET_DEVICEVALUENAMES: {
-      for (byte i = 0; i < VARS_PER_TASK; ++i) {
+      for (uint8_t i = 0; i < VARS_PER_TASK; ++i) {
         if (i < P087_NR_OUTPUT_VALUES) {
-          const byte pconfigIndex = i + P087_QUERY1_CONFIG_POS;
-          byte choice             = PCONFIG(pconfigIndex);
-          safe_strncpy(
-            ExtraTaskSettings.TaskDeviceValueNames[i],
-            Plugin_087_valuename(choice, false),
-            sizeof(ExtraTaskSettings.TaskDeviceValueNames[i]));
+          const uint8_t pconfigIndex = i + P087_QUERY1_CONFIG_POS;
+          uint8_t choice             = PCONFIG(pconfigIndex);
+          ExtraTaskSettings.setTaskDeviceValueName(i, Plugin_087_valuename(choice, false));
         } else {
-          ZERO_FILL(ExtraTaskSettings.TaskDeviceValueNames[i]);
+          ExtraTaskSettings.clearTaskDeviceValueName(i);
         }
       }
       break;
     }
+
+    # if FEATURE_MQTT_DISCOVER
+    case PLUGIN_GET_DISCOVERY_VTYPES:
+    {
+      event->Par1 = static_cast<int>(Sensor_VType::SENSOR_TYPE_NONE); // Not yet supported
+      success     = true;
+      break;
+    }
+    # endif // if FEATURE_MQTT_DISCOVER
 
     case PLUGIN_GET_DEVICEGPIONAMES: {
       serialHelper_getGpioNames(event, false, true); // TX optional
@@ -229,14 +114,15 @@ boolean Plugin_087(byte function, struct EventStruct *event, String& string) {
         static_cast<P087_data_struct *>(getPluginTaskData(event->TaskIndex));
 
       if ((nullptr != P087_data) && P087_data->isInitialized()) {
-        uint32_t success, error, length_last;
-        P087_data->getSentencesReceived(success, error, length_last);
-        byte varNr = VARS_PER_TASK;
-        addHtml(pluginWebformShowValue(event->TaskIndex, varNr++, F("Success"),     String(success)));
-        addHtml(pluginWebformShowValue(event->TaskIndex, varNr++, F("Error"),       String(error)));
-        addHtml(pluginWebformShowValue(event->TaskIndex, varNr++, F("Length Last"), String(length_last), true));
-
-        // success = true;
+        uint32_t success_count, error, length_last;
+        P087_data->getSentencesReceived(success_count, error, length_last);
+        uint8_t varNr = VARS_PER_TASK;
+        TaskValuesWriterHelper data(event);
+        data.setWriteRegularTaskValuesFirst();
+        data.writeCustom(varNr++, F("Success"),     String(success_count));
+        data.writeCustom(varNr++, F("Error"),       String(error));
+        data.writeCustom(varNr++, F("Length Last"), String(length_last));
+        success = true; // Do not write other taskvalues
       }
       break;
     }
@@ -256,84 +142,64 @@ boolean Plugin_087(byte function, struct EventStruct *event, String& string) {
       break;
     }
 
-    case PLUGIN_WEBFORM_LOAD: {
-      serialHelper_webformLoad(event);
-
-      /*
-         P087_data_struct *P087_data =
-            static_cast<P087_data_struct *>(getPluginTaskData(event->TaskIndex));
-         if (nullptr != P087_data && P087_data->isInitialized()) {
-            String detectedString = F("Detected: ");
-            detectedString += String(P087_data->P087_easySerial->baudRate());
-            addUnit(detectedString);
-       */
-
-      addFormNumericBox(F("Baudrate"), P087_BAUDRATE_LABEL, P087_BAUDRATE, 2400, 115200);
+    case PLUGIN_WEBFORM_SHOW_SERIAL_PARAMS:
+    {
+      addFormNumericBox(F("Baudrate"), P087_BAUDRATE_LABEL, P087_BAUDRATE, 300, 115200);
       addUnit(F("baud"));
+      const uint8_t serialConfChoice = serialHelper_convertOldSerialConfig(P087_SERIAL_CONFIG);
+      serialHelper_serialconfig_webformLoad(event, serialConfChoice);
+      break;
+    }
 
-      /*
-         {
-         // In a separate scope to free memory of String array as soon as possible
-         sensorTypeHelper_webformLoad_header();
-         String options[P087_NR_OUTPUT_OPTIONS];
+    case PLUGIN_WEBFORM_LOAD: {
+      addFormSubHeader(F("Filtering"));
+      P087_html_show_matchForms(event);
 
-         for (int i = 0; i < P087_NR_OUTPUT_OPTIONS; ++i) {
-          options[i] = Plugin_087_valuename(i, true);
-         }
-
-         for (byte i = 0; i < P087_NR_OUTPUT_VALUES; ++i) {
-          const byte pconfigIndex = i + P087_QUERY1_CONFIG_POS;
-          sensorTypeHelper_loadOutputSelector(event, pconfigIndex, i, P087_NR_OUTPUT_OPTIONS, options);
-         }
-         }
-       */
-
-      {
-        String strings[P87_Nlines];
-        LoadCustomTaskSettings(event->TaskIndex, strings, P87_Nlines, P87_Nchars);
-
-        for (byte varNr = 0; varNr < P87_Nlines; varNr++)
-        {
-          String label = F("Init ");
-          label += String(varNr + 1);
-          addFormTextBox(label, getPluginCustomArgName(varNr), strings[varNr], P87_Nchars);
-        }
-      }
-
-
+      addFormSubHeader(F("Statistics"));
       P087_html_show_stats(event);
+
+      # ifndef LIMIT_BUILD_SIZE
+      addFormSubHeader(F("Data options"));
+      addFormCheckBox(F("Receive binary data"), P087_READ_BIN_LABEL, P087_CONFIG_GET_READ_BIN);
+      addFormNumericBox(F("Fixed length input data"), P087_FIXED_LENGTH_LABEL, P087_CONFIG_GET_FIXED_LENGTH, 0, 255);
+      addUnit(F("0 = off, max. 255"));
+      addFormCheckBox(F("Event with hex. data (no prefix)"), P087_EVENT_HEX_LABEL, P087_CONFIG_GET_EVENT_HEX);
+      # endif // ifndef LIMIT_BUILD_SIZE
 
       success = true;
       break;
     }
 
     case PLUGIN_WEBFORM_SAVE: {
-      serialHelper_webformSave(event);
-      P087_BAUDRATE = getFormItemInt(P087_BAUDRATE_LABEL);
+      P087_BAUDRATE      = getFormItemInt(P087_BAUDRATE_LABEL);
+      P087_SERIAL_CONFIG = serialHelper_serialconfig_webformSave();
+      # ifndef LIMIT_BUILD_SIZE
+      P087_CONFIG_SET_READ_BIN(isFormItemChecked(P087_READ_BIN_LABEL));
+      P087_CONFIG_SET_FIXED_LENGTH(getFormItemInt(P087_FIXED_LENGTH_LABEL));
+      P087_CONFIG_SET_EVENT_HEX(isFormItemChecked(P087_EVENT_HEX_LABEL));
+      # endif // ifndef LIMIT_BUILD_SIZE
 
-      String error;
-      char   P087_deviceTemplate[P87_Nlines][P87_Nchars];
+      P087_data_struct *P087_data =
+        static_cast<P087_data_struct *>(getPluginTaskData(event->TaskIndex));
 
-      for (byte varNr = 0; varNr < P87_Nlines; varNr++)
-      {
-        if (!safe_strncpy(P087_deviceTemplate[varNr], WebServer.arg(getPluginCustomArgName(varNr)), P87_Nchars)) {
-          error += getCustomTaskSettingsError(varNr);
+      if (nullptr != P087_data) {
+        for (uint8_t varNr = 0; varNr < P87_Nlines; ++varNr)
+        {
+          P087_data->setLine(varNr, webArg(getPluginCustomArgName(varNr)));
         }
+
+        addHtmlError(SaveCustomTaskSettings(event->TaskIndex, P087_data->_lines, P87_Nlines, 0));
+        success = true;
       }
 
-      if (error.length() > 0) {
-        addHtmlError(error);
-      }
-      SaveCustomTaskSettings(event->TaskIndex, (byte *)&P087_deviceTemplate, sizeof(P087_deviceTemplate));
-
-      success = true;
       break;
     }
 
     case PLUGIN_INIT: {
-      const int16_t serial_rx = CONFIG_PIN1;
-      const int16_t serial_tx = CONFIG_PIN2;
-      initPluginTaskData(event->TaskIndex, new P087_data_struct());
+      const int16_t serial_rx      = CONFIG_PIN1;
+      const int16_t serial_tx      = CONFIG_PIN2;
+      const ESPEasySerialPort port = static_cast<ESPEasySerialPort>(CONFIG_PORT);
+      initPluginTaskData(event->TaskIndex, new (std::nothrow) P087_data_struct());
       P087_data_struct *P087_data =
         static_cast<P087_data_struct *>(getPluginTaskData(event->TaskIndex));
 
@@ -341,42 +207,36 @@ boolean Plugin_087(byte function, struct EventStruct *event, String& string) {
         return success;
       }
 
-      if (P087_data->init(serial_rx, serial_tx, P087_BAUDRATE)) {
-        success = true;
+      if (P087_data->init(port, serial_rx, serial_tx, P087_BAUDRATE, static_cast<uint8_t>(P087_SERIAL_CONFIG))) {
+        LoadCustomTaskSettings(event->TaskIndex, P087_data->_lines, P87_Nlines, 0);
+        P087_data->post_init();
+        # ifndef LIMIT_BUILD_SIZE
+        P087_data->setHandleBinary(P087_CONFIG_GET_READ_BIN);
+        P087_data->setEventAsHex(P087_CONFIG_GET_EVENT_HEX);
 
-        if (loglevelActiveFor(LOG_LEVEL_DEBUG)) {
-          String log = F("Serial : Init OK  ESP GPIO-pin RX:");
-          log += serial_rx;
-          log += F(" TX:");
-          log += serial_tx;
-          addLog(LOG_LEVEL_DEBUG, log);
+        if (P087_CONFIG_GET_FIXED_LENGTH > 0) {
+          P087_data->setMaxLength(P087_CONFIG_GET_FIXED_LENGTH);
         }
+        P087_data->setFixedLength(P087_CONFIG_GET_FIXED_LENGTH);
+        # endif // ifndef LIMIT_BUILD_SIZE
+        success = true;
+        serialHelper_log_GpioDescription(port, serial_rx, serial_tx);
       } else {
         clearPluginTaskData(event->TaskIndex);
       }
       break;
     }
 
-    case PLUGIN_EXIT: {
-      clearPluginTaskData(event->TaskIndex);
-      success = true;
-      break;
-    }
-
     case PLUGIN_FIFTY_PER_SECOND: {
-      if (Settings.TaskDeviceEnabled[event->TaskIndex]) {
-        P087_data_struct *P087_data =
-          static_cast<P087_data_struct *>(getPluginTaskData(event->TaskIndex));
+      P087_data_struct *P087_data =
+        static_cast<P087_data_struct *>(getPluginTaskData(event->TaskIndex));
 
-        if ((nullptr != P087_data) && P087_data->loop()) {
-          // schedule_task_device_timer(event->TaskIndex, millis() + 10);
-          delay(0); // Processing a full sentence may take a while, run some
-                    // background tasks.
-          P087_data->getSentence(event->String2);
-          sendData(event);
-        }
-        success = true;
+      if ((nullptr != P087_data) && P087_data->loop()) {
+        Scheduler.schedule_task_device_timer(event->TaskIndex, millis() + 10);
+        delay(0); // Processing a full sentence may take a while, run some
+                  // background tasks.
       }
+      success = true;
       break;
     }
 
@@ -384,11 +244,69 @@ boolean Plugin_087(byte function, struct EventStruct *event, String& string) {
       P087_data_struct *P087_data =
         static_cast<P087_data_struct *>(getPluginTaskData(event->TaskIndex));
 
-      if ((nullptr != P087_data)) {
-        String strings[P87_Nlines];
-        LoadCustomTaskSettings(event->TaskIndex, strings, P87_Nlines, P87_Nchars);
-        parseSystemVariables(strings[0], false);
-        P087_data->sendString(strings[0]);
+      if ((nullptr != P087_data) && P087_data->getSentence(event->String2)) {
+        if (Plugin_087_match_all(event->TaskIndex, event->String2)) {
+          //          sendData(event);
+          # ifndef LIMIT_BUILD_SIZE
+
+          if (P087_data->isEventAsHex() && !event->String2.isEmpty()) { // Convert to hex without prefix
+            event->String2 = formatToHex_array(reinterpret_cast<const uint8_t *>(&event->String2[0]), event->String2.length());
+          }
+          # endif // ifndef LIMIT_BUILD_SIZE
+          # ifndef BUILD_NO_DEBUG
+          addLog(LOG_LEVEL_DEBUG, event->String2);
+          # endif // ifndef BUILD_NO_DEBUG
+          success = true;
+        }
+      }
+
+      break;
+    }
+
+    case PLUGIN_WRITE: {
+      P087_data_struct *P087_data =
+        static_cast<P087_data_struct *>(getPluginTaskData(event->TaskIndex));
+
+      if (nullptr != P087_data) {
+        const String cmd = parseString(string, 1);
+
+        if (equals(cmd, F("serialproxy_write"))) {
+          String param1 = parseStringKeepCaseNoTrim(string, 2); // Don't trim off white-space
+          parseSystemVariables(param1, false);                  // FIXME tonhuisman: Doesn't seem to be needed?
+          P087_data->sendString(param1);
+          addLogMove(LOG_LEVEL_INFO, param1);                   // FIXME tonhuisman: Should we always want to write to the log?
+          success = true;
+        } else
+        if (equals(cmd, F("serialproxy_writemix"))) {
+          std::vector<uint8_t> param1 = parseHexTextData(string);
+
+          if (param1.size()) {
+            P087_data->sendData(&param1[0], param1.size());
+          }
+          success = true;
+        } else
+        if (equals(cmd, F("serialproxy_test"))) { // Test-parse data as if received via serial
+          const String param1 = parseStringKeepCaseNoTrim(string, 2);
+
+          if (!param1.isEmpty()) {
+            P087_data->setLastSentence(param1);
+            Scheduler.schedule_task_device_timer(event->TaskIndex, millis() + 10);
+            delay(0); // Processing a full sentence may take a while, run some background tasks.
+          }
+          success = true;
+        }
+      }
+
+      break;
+    }
+
+    case PLUGIN_GET_CONFIG_VALUE:
+    {
+      P087_data_struct *P087_data =
+        static_cast<P087_data_struct *>(getPluginTaskData(event->TaskIndex));
+
+      if (nullptr != P087_data) {
+        success = P087_data->plugin_get_config_value(event, string);
       }
       break;
     }
@@ -396,11 +314,119 @@ boolean Plugin_087(byte function, struct EventStruct *event, String& string) {
   return success;
 }
 
-String Plugin_087_valuename(byte value_nr, bool displayString) {
-  switch (value_nr) {
-    case P087_QUERY_VALUE: return displayString ? F("Value")          : F("v");
+bool Plugin_087_match_all(taskIndex_t taskIndex, String& received)
+{
+  P087_data_struct *P087_data =
+    static_cast<P087_data_struct *>(getPluginTaskData(taskIndex));
+
+  if ((nullptr == P087_data)) {
+    return false;
   }
-  return "";
+
+
+  if (P087_data->disableFilterWindowActive()) {
+    addLog(LOG_LEVEL_INFO, F("Serial Proxy: Disable Filter Window active"));
+    return true;
+  }
+
+  const bool res = P087_data->matchRegexp(received);
+
+  if (P087_data->invertMatch()) {
+    addLog(LOG_LEVEL_INFO, F("Serial Proxy: invert filter"));
+    return !res;
+  }
+  return res;
+}
+
+String Plugin_087_valuename(uint8_t value_nr, bool displayString) {
+  switch (value_nr) {
+    case P087_QUERY_VALUE: return displayString ? F("Value") : F("v");
+  }
+  return EMPTY_STRING;
+}
+
+void P087_html_show_matchForms(struct EventStruct *event) {
+  P087_data_struct *P087_data =
+    static_cast<P087_data_struct *>(getPluginTaskData(event->TaskIndex));
+
+  if ((nullptr != P087_data)) {
+    addFormTextBox(F("RegEx"), getPluginCustomArgName(P087_REGEX_POS), P087_data->getRegEx(), P87_Nchars);
+    addFormNote(F("Captures are specified using round brackets."));
+
+    addFormNumericBox(F("Nr Chars use in regex"), getPluginCustomArgName(P087_NR_CHAR_USE_POS), P087_data->getRegExpMatchLength(), 0, 1024);
+    addFormNote(F("0 = Use all of the received string."));
+
+    addFormNumericBox(F("Filter Off Window after send"),
+                      getPluginCustomArgName(P087_FILTER_OFF_WINDOW_POS),
+                      P087_data->getFilterOffWindowTime(),
+                      0,
+                      60000);
+    addUnit(F("msec"));
+    addFormNote(F("0 = Do not turn off filter after sending to the connected device."));
+
+    {
+      const __FlashStringHelper *options[P087_Match_Type_NR_ELEMENTS];
+      int optionValues[P087_Match_Type_NR_ELEMENTS];
+
+      for (int i = 0; i < P087_Match_Type_NR_ELEMENTS; ++i) {
+        P087_Match_Type matchType = static_cast<P087_Match_Type>(i);
+        options[i]      = P087_data_struct::MatchType_toString(matchType);
+        optionValues[i] = matchType;
+      }
+      P087_Match_Type choice = P087_data->getMatchType();
+      const FormSelectorOptions selector(
+        P087_Match_Type_NR_ELEMENTS,
+        options,
+        optionValues);
+      selector.addFormSelector(
+        F("Match Type"),
+        getPluginCustomArgName(P087_MATCH_TYPE_POS),
+        choice);
+      addFormNote(F("Capture filter can only be used on Global Match"));
+    }
+
+
+    uint8_t lineNr              = 0;
+    uint8_t capture             = 0;
+    P087_Filter_Comp comparator = P087_Filter_Comp::Equal;
+    String filter;
+
+    for (uint8_t varNr = P087_FIRST_FILTER_POS; varNr < P87_Nlines; ++varNr)
+    {
+      const String id = getPluginCustomArgName(varNr);
+
+      switch (varNr % 3) {
+        case 0:
+        {
+          // Label + first parameter
+          filter = P087_data->getFilter(lineNr, capture, comparator);
+          ++lineNr;
+          addRowLabel_tr_id(concat(F("Capture Filter "), lineNr), id);
+
+          addNumericBox(id, capture, -1, P87_MAX_CAPTURE_INDEX);
+          break;
+        }
+        case 1:
+        {
+          // Comparator
+          const __FlashStringHelper *options[2];
+          options[P087_Filter_Comp::Equal]    = F("==");
+          options[P087_Filter_Comp::NotEqual] = F("!=");
+          const int optionValues[] = { P087_Filter_Comp::Equal, P087_Filter_Comp::NotEqual };
+          FormSelectorOptions selector(2, options, optionValues);
+          selector.clearClassName();
+          selector.addSelector(id, static_cast<int>(comparator));
+          break;
+        }
+        case 2:
+        {
+          // Compare with
+          addTextBox(id, filter, 32, F(""));
+          break;
+        }
+      }
+    }
+  }
 }
 
 void P087_html_show_stats(struct EventStruct *event) {
@@ -419,15 +445,11 @@ void P087_html_show_stats(struct EventStruct *event) {
 
   {
     addRowLabel(F("Sentences (pass/fail)"));
-    String   chksumStats;
     uint32_t success, error, length_last;
     P087_data->getSentencesReceived(success, error, length_last);
-    chksumStats  = success;
-    chksumStats += '/';
-    chksumStats += error;
-    addHtml(chksumStats);
+    addHtml(strformat(F("%d/%d"), success, error));
     addRowLabel(F("Length Last Sentence"));
-    addHtml(String(length_last));
+    addHtmlInt(length_last);
   }
 }
 

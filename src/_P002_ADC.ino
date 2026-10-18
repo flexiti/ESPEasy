@@ -1,28 +1,25 @@
+#include "_Plugin_Helper.h"
 #ifdef USES_P002
+#if SOC_ADC_SUPPORTED || defined(ESP8266)
+
+# include "src/Helpers/Hardware.h"
+# include "src/PluginStructs/P002_data_struct.h"
 
 // #######################################################################################################
 // #################################### Plugin 002: Analog ###############################################
 // #######################################################################################################
 
-#define PLUGIN_002
-#define PLUGIN_ID_002         2
-#define PLUGIN_NAME_002       "Analog input - internal"
-#define PLUGIN_VALUENAME1_002 "Analog"
+/** Changelog:
+ * 2025-01-12 tonhuisman: Add support for MQTT AutoDiscovery
+ */
+
+# define PLUGIN_002
+# define PLUGIN_ID_002         2
+# define PLUGIN_NAME_002       "Analog input - internal"
+# define PLUGIN_VALUENAME1_002 "Analog"
 
 
-#ifdef ESP32
-  # define P002_MAX_ADC_VALUE    4095
-#endif // ifdef ESP32
-#ifdef ESP8266
-  # define P002_MAX_ADC_VALUE    1023
-#endif // ifdef ESP8266
-
-uint32_t Plugin_002_OversamplingValue  = 0;
-uint16_t Plugin_002_OversamplingCount  = 0;
-uint16_t Plugin_002_OversamplingMinVal = P002_MAX_ADC_VALUE;
-uint16_t Plugin_002_OversamplingMaxVal = 0;
-
-boolean Plugin_002(byte function, struct EventStruct *event, String& string)
+boolean Plugin_002(uint8_t function, struct EventStruct *event, String& string)
 {
   boolean success = false;
 
@@ -30,17 +27,16 @@ boolean Plugin_002(byte function, struct EventStruct *event, String& string)
   {
     case PLUGIN_DEVICE_ADD:
     {
-      Device[++deviceCount].Number           = PLUGIN_ID_002;
-      Device[deviceCount].Type               = DEVICE_TYPE_ANALOG;
-      Device[deviceCount].VType              = SENSOR_TYPE_SINGLE;
-      Device[deviceCount].Ports              = 0;
-      Device[deviceCount].PullUpOption       = false;
-      Device[deviceCount].InverseLogicOption = false;
-      Device[deviceCount].FormulaOption      = true;
-      Device[deviceCount].ValueCount         = 1;
-      Device[deviceCount].SendDataOption     = true;
-      Device[deviceCount].TimerOption        = true;
-      Device[deviceCount].GlobalSyncOption   = true;
+      auto& dev = Device[++deviceCount];
+      dev.Number           = PLUGIN_ID_002;
+      dev.Type             = DEVICE_TYPE_ANALOG;
+      dev.VType            = Sensor_VType::SENSOR_TYPE_SINGLE;
+      dev.FormulaOption    = true;
+      dev.ValueCount       = 1;
+      dev.SendDataOption   = true;
+      dev.TimerOption      = true;
+      dev.PluginStats      = true;
+      dev.TaskLogsOwnPeaks = true;
       break;
     }
 
@@ -56,81 +52,84 @@ boolean Plugin_002(byte function, struct EventStruct *event, String& string)
       break;
     }
 
-    case PLUGIN_WEBFORM_LOAD:
+    # if FEATURE_MQTT_DISCOVER
+    case PLUGIN_GET_DISCOVERY_VTYPES:
     {
-        #if defined(ESP32)
-      addHtml(F("<TR><TD>Analog Pin:<TD>"));
-      addPinSelect(false, F("taskdevicepin1"), CONFIG_PIN1);
-        #endif // if defined(ESP32)
-
-      addFormCheckBox(F("Oversampling"), F("p002_oversampling"), PCONFIG(0));
-
-      addFormSubHeader(F("Two Point Calibration"));
-
-      addFormCheckBox(F("Calibration Enabled"), F("p002_cal"), PCONFIG(3));
-
-      addFormNumericBox(F("Point 1"), F("p002_adc1"), PCONFIG_LONG(0), 0, P002_MAX_ADC_VALUE);
-      html_add_estimate_symbol();
-      addTextBox(F("p002_out1"), String(PCONFIG_FLOAT(0), 3), 10);
-
-      addFormNumericBox(F("Point 2"), F("p002_adc2"), PCONFIG_LONG(1), 0, P002_MAX_ADC_VALUE);
-      html_add_estimate_symbol();
-      addTextBox(F("p002_out2"), String(PCONFIG_FLOAT(1), 3), 10);
-
-      {
-        // Output the statistics for the current settings.
-        uint16_t raw_value = 0;
-        float value;
-        if (P002_getOutputValue(event, raw_value, value)) {
-          P002_formatStatistics(F("Current"), raw_value, value);
-        }
-
-        if (PCONFIG(3)) {
-          P002_formatStatistics(F("Minimum"),   0,                  P002_applyCalibration(event, 0));
-          P002_formatStatistics(F("Maximum"),   P002_MAX_ADC_VALUE, P002_applyCalibration(event, P002_MAX_ADC_VALUE));
-
-          float stepsize = P002_applyCalibration(event, 1.0) - P002_applyCalibration(event, 0.0);
-          P002_formatStatistics(F("Step size"), 1,                  stepsize);
-        }
-      }
-
-      success = true;
+      success = getDiscoveryVType(event, Plugin_QueryVType_Analog, 255, event->Par5);
       break;
     }
+    # endif // if FEATURE_MQTT_DISCOVER
+
+    case PLUGIN_WEBFORM_LOAD:
+    {
+      P002_data_struct *P002_data =
+        static_cast<P002_data_struct *>(getPluginTaskData(event->TaskIndex));
+
+      if (nullptr != P002_data) {
+        P002_data->webformLoad(event);
+        success = true;
+      } else {
+        constexpr unsigned size = sizeof(P002_data_struct);
+        void *ptr               = special_calloc(1, size);
+  
+        if (ptr == nullptr) {
+          break;
+        }
+
+        P002_data = new (ptr) P002_data_struct();
+
+        if (nullptr != P002_data) {
+          P002_data->init(event);
+          P002_data->webformLoad(event);
+          success = true;
+          delete P002_data;
+        }
+      }
+      break;
+    }
+
+# if FEATURE_PLUGIN_STATS
+    case PLUGIN_WEBFORM_LOAD_SHOW_STATS:
+    {
+      P002_data_struct *P002_data =
+        static_cast<P002_data_struct *>(getPluginTaskData(event->TaskIndex));
+
+      if (nullptr != P002_data) {
+        success = P002_data->webformLoad_show_stats(event);
+      }
+      break;
+    }
+# endif // if FEATURE_PLUGIN_STATS
 
     case PLUGIN_WEBFORM_SAVE:
     {
-      PCONFIG(0) = isFormItemChecked(F("p002_oversampling"));
-
-      PCONFIG(3) = isFormItemChecked(F("p002_cal"));
-
-      PCONFIG_LONG(0)  = getFormItemInt(F("p002_adc1"));
-      PCONFIG_FLOAT(0) = getFormItemFloat(F("p002_out1"));
-
-      PCONFIG_LONG(1)  = getFormItemInt(F("p002_adc2"));
-      PCONFIG_FLOAT(1) = getFormItemFloat(F("p002_out2"));
+      addHtmlError(P002_data_struct::webformSave(event));
 
       success = true;
       break;
     }
 
+    case PLUGIN_INIT:
+    {
+      special_initPluginTaskData(event->TaskIndex, P002_data_struct);
+      P002_data_struct *P002_data =
+        static_cast<P002_data_struct *>(getPluginTaskData(event->TaskIndex));
+
+      if (nullptr != P002_data) {
+        success = true;
+        P002_data->init(event);
+      }
+      break;
+    }
     case PLUGIN_TEN_PER_SECOND:
     {
-      if (PCONFIG(0)) // Oversampling?
+      if (P002_OVERSAMPLING != P002_USE_CURENT_SAMPLE) // Use multiple samples
       {
-        uint16_t currentValue;
+        P002_data_struct *P002_data =
+          static_cast<P002_data_struct *>(getPluginTaskData(event->TaskIndex));
 
-        if (P002_performRead(event, currentValue)) {
-          Plugin_002_OversamplingValue += currentValue;
-          ++Plugin_002_OversamplingCount;
-
-          if (currentValue > Plugin_002_OversamplingMaxVal) {
-            Plugin_002_OversamplingMaxVal = currentValue;
-          }
-
-          if (currentValue < Plugin_002_OversamplingMinVal) {
-            Plugin_002_OversamplingMinVal = currentValue;
-          }
+        if (nullptr != P002_data) {
+          P002_data->takeSample();
         }
       }
       success = true;
@@ -139,114 +138,53 @@ boolean Plugin_002(byte function, struct EventStruct *event, String& string)
 
     case PLUGIN_READ:
     {
-      uint16_t raw_value = 0;
-      float res_value = 0.0;
-      if (P002_getOutputValue(event, raw_value, res_value)) {;
-        UserVar[event->BaseVarIndex] = res_value;
+      int   raw_value = 0;
+      float res_value = 0.0f;
+
+      P002_data_struct *P002_data =
+        static_cast<P002_data_struct *>(getPluginTaskData(event->TaskIndex));
+
+      if ((P002_data != nullptr) && P002_data->getValue(res_value, raw_value)) {
+        UserVar.setFloat(event->TaskIndex, 0, res_value);
 
         if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-          String log = F("ADC  : Analog value: ");
-          log += String(raw_value);
-          log += F(" = ");
-          log += String(UserVar[event->BaseVarIndex], 3);
+          String log = strformat(
+            F("ADC  : Analog value: %d = %s"),
+            raw_value,
+            formatUserVarNoCheck(event, 0).c_str());
 
-          if (PCONFIG(0)) {
-            log += F(" (");
-            log += Plugin_002_OversamplingCount;
-            log += F(" samples)");
+          if (P002_OVERSAMPLING == P002_USE_OVERSAMPLING) {
+            log += strformat(F(" (%u samples)"), P002_data->getOversamplingCount());
           }
-        addLog(LOG_LEVEL_INFO, log);
+          addLogMove(LOG_LEVEL_INFO, log);
         }
-        // Now reset the oversampling variables.
-        Plugin_002_OversamplingValue  = 0;
-        Plugin_002_OversamplingCount  = 0;
-        Plugin_002_OversamplingMinVal = P002_MAX_ADC_VALUE;
-        Plugin_002_OversamplingMaxVal = 0;
-        success                       = true;
+        P002_data->reset();
+        success = true;
       } else {
-        if (loglevelActiveFor(LOG_LEVEL_ERROR)) {
-          String log = F("ADC  : No value received ");
-          addLog(LOG_LEVEL_ERROR, log);
-        }
+        addLog(LOG_LEVEL_ERROR, F("ADC  : No value received "));
         success = false;
       }
 
+      break;
+    }
+
+    case PLUGIN_SET_CONFIG:
+    {
+      P002_data_struct *P002_data =
+        static_cast<P002_data_struct *>(getPluginTaskData(event->TaskIndex));
+
+      if (P002_data != nullptr) {
+        success = P002_data->plugin_set_config(event, string);
+
+        if (success) {
+          P002_data->init(event);
+        }
+      }
       break;
     }
   }
   return success;
 }
 
-bool P002_getOutputValue(struct EventStruct *event, uint16_t& raw_value, float& res_value) {
-  float float_value = 0.0;
-  bool success;
-
-  if (PCONFIG(0) && (Plugin_002_OversamplingCount > 0)) {
-    float sum   = static_cast<float>(Plugin_002_OversamplingValue);
-    float count = static_cast<float>(Plugin_002_OversamplingCount);
-
-    if (Plugin_002_OversamplingCount >= 3) {
-      sum   -= Plugin_002_OversamplingMaxVal;
-      sum   -= Plugin_002_OversamplingMinVal;
-      count -= 2;
-    }
-    float_value = sum / count;
-    raw_value   = static_cast<int16_t>(float_value);
-    success = true;
-  } else {
-    if (P002_performRead(event, raw_value)) {
-      float_value = static_cast<float>(raw_value);
-      success = true;
-    } else {
-      success = false;
-    }
-  }
-  if (success) res_value = P002_applyCalibration(event, float_value);
-  return success;
-}
-
-float P002_applyCalibration(struct EventStruct *event, float float_value) {
-  if (PCONFIG(3)) // Calibration?
-  {
-    int   adc1 = PCONFIG_LONG(0);
-    int   adc2 = PCONFIG_LONG(1);
-    float out1 = PCONFIG_FLOAT(0);
-    float out2 = PCONFIG_FLOAT(1);
-
-    if (adc1 != adc2)
-    {
-      const float normalized = static_cast<float>(float_value - adc1) / static_cast<float>(adc2 - adc1);
-      float_value = normalized * (out2 - out1) + out1;
-    }
-  }
-  return float_value;
-}
-
-bool P002_performRead(struct EventStruct *event, uint16_t& value) {
-  // Define it static so we just return the last value when no read can be performed.
-  static uint16_t last_value = 0;
-  bool valid                 = true;
-
-  #if defined(ESP8266)
-
-  if (!wifiConnectInProgress) {
-    last_value = analogRead(A0);
-  } else {
-    valid = false;
-  }
-  #endif // if defined(ESP8266)
-  #if defined(ESP32)
-  last_value = analogRead(CONFIG_PIN1);
-  #endif // if defined(ESP32)
-  value = last_value;
-  return valid;
-}
-
-void P002_formatStatistics(const String& label, int16_t raw, float float_value) {
-  addRowLabel(label);
-  addHtml(String(raw));
-  html_add_estimate_symbol();
-  addHtml(String(float_value, 3));
-}
-
+#endif
 #endif // USES_P002

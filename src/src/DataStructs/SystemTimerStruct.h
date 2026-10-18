@@ -3,26 +3,88 @@
 
 #include "../../ESPEasy_common.h"
 #include <map>
+#include "../Globals/Plugins.h"
 
 /*********************************************************************************************\
- * systemTimerStruct
+* systemTimerStruct
 \*********************************************************************************************/
 struct systemTimerStruct
 {
-  systemTimerStruct() :
-    timer(0), Par1(0), Par2(0), Par3(0), Par4(0), Par5(0), TaskIndex(-1), plugin(0) {}
+  systemTimerStruct() {}
 
-  unsigned long timer;
-  int Par1;
-  int Par2;
-  int Par3;
-  int Par4;
-  int Par5;
-  int16_t TaskIndex;
-  byte plugin;
+private:
+
+  int         _recurringCount    = 0;
+  int         _interval          = 0;
+  int         _timerIndex        = 0;
+  int         _remainder         = 0;
+  int         _loopCount         = 0;
+  int         _alternateInterval = 0;
+  int         _index             = -1;
+  bool        _alternateState    = false;
+
+public:
+
+  // ***************
+  // Rules Timer use
+  // ***************
+  systemTimerStruct(int           recurringCount,
+                    uint32_t msecFromNow,
+                    unsigned int  timerIndex,
+                    int           alternateInterval = 0);
+
+  struct EventStruct toEvent() const;
+
+  struct EventStruct toNetworkEvent() const;
+
+  void               fromEvent(int  Index,
+                               int         Par1,
+                               int         Par2,
+                               int         Par3,
+                               int         Par4,
+                               int         Par5);
+
+  bool isRecurring() const {
+    return _recurringCount != 0;
+  }
+
+  void          markNextRecurring();
+
+  uint32_t getInterval() const {
+    return _alternateState ? _alternateInterval : _interval;
+  }
+
+  unsigned int getTimerIndex() const {
+    return _timerIndex;
+  }
+
+  bool isPaused() const {
+    return _remainder != 0;
+  }
+
+  int getRemainder() const {
+    return _remainder;
+  }
+
+  void setRemainder(int timeLeft) {
+    _remainder = timeLeft;
+  }
+
+  int getLoopCount() const {
+    if (hasAlternateInterval()) { return _loopCount / 2; }
+    return _loopCount;
+  }
+
+  void toggleAlternateState();
+
+  bool isAlternateState() const {
+    return _alternateState;
+  }
+
+  bool hasAlternateInterval() const {
+    return _alternateInterval > 0;
+  }
 };
-std::map<unsigned long, systemTimerStruct> systemTimers;
-
 
 
 #endif // DATASTRUCTS_SYSTEMTIMERSTRUCT_H

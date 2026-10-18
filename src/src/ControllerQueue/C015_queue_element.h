@@ -2,39 +2,59 @@
 #define CONTROLLERQUEUE_C015_QUEUE_ELEMENT_H
 
 #include "../../ESPEasy_common.h"
-#include "../DataStructs/ESPEasyLimits.h"
+
+#ifdef USES_C015
+
+#include "../ControllerQueue/Queue_element_base.h"
+#include "../CustomBuild/ESPEasyLimits.h"
+#include "../DataStructs/UnitMessageCount.h"
+#include "../Globals/CPlugins.h"
+#include "../Globals/Plugins.h"
 
 struct EventStruct;
 
-// #ifdef USES_C015
 
 /*********************************************************************************************\
 * C015_queue_element for queueing requests for 015: Blynk
-* Using queue_element_single_value_base
+* Using SimpleQueueElement_formatted_Strings
 \*********************************************************************************************/
 
-class C015_queue_element {
+class C015_queue_element : public Queue_element_base {
 public:
 
-  C015_queue_element();
+  C015_queue_element() = default;
+
+  C015_queue_element(const C015_queue_element& other) = delete;
+
+  C015_queue_element(C015_queue_element&& other);
 
   C015_queue_element(const struct EventStruct *event,
-                     byte                      value_count);
+                     uint8_t                   value_count);
 
-  bool   checkDone(bool succesfull) const;
+  C015_queue_element      & operator=(C015_queue_element&& other);
 
-  size_t getSize() const;
+  bool                      checkDone(bool succesfull) const;
 
-  String txt[VARS_PER_TASK];
-  int vPin[VARS_PER_TASK] = { 0 };
-  int controller_idx      = 0;
-  byte TaskIndex          = 0;
-  int idx                 = 0;
-  mutable byte valuesSent = 0; // Value must be set by const function checkDone()
-  byte valueCount         = 0;
+  size_t                    getSize() const override;
+
+  bool                      isDuplicate(const Queue_element_base& other) const override;
+
+  const UnitMessageCount_t* getUnitMessageCount() const override {
+    return nullptr;
+  }
+
+  UnitMessageCount_t* getUnitMessageCount() override {
+    return nullptr;
+  }
+
+  String txt[VARS_PER_TASK]  = {};
+  int vPin[VARS_PER_TASK]    = { 0 };
+  int idx                    = 0;
+  mutable uint8_t valuesSent = 0; // Value must be set by const function checkDone()
+  uint8_t valueCount         = 0;
 };
 
-// #endif //USES_C015
+#endif // USES_C015
 
 
 #endif // CONTROLLERQUEUE_C015_QUEUE_ELEMENT_H
